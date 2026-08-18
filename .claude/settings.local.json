@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"E:\\\\Projects\\\\CareBridge\\\\backend\\\\src\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"E:\\\\Projects\\\\CareBridge\\\\frontend\\\\src\\\\pages\" -Recurse -File -Filter \"*.jsx\" -Force)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object)",
+      "Bash(npm run *)",
+      "Bash(node -c src/models/Referral.js)",
+      "Bash(node -c src/controllers/referralController.js)",
+      "Bash(node -c src/controllers/adminController.js)",
+      "Read(//e/e/Projects/CareBridge/backend/src/controllers/**)",
+      "Read(//e/e/Projects/CareBridge/**)",
+      "Bash(node *)",
+      "Bash(npx eslint *)",
+      "Bash(PORT=5099 timeout 45 node src/server.js)",
+      "Bash(git -C \"E:/Projects/CareBridge\" remote -v)",
+      "Bash(git -C \"E:/Projects/CareBridge\" branch --show-current)",
+      "Bash(git -C \"E:/Projects/CareBridge\" log --oneline -3)",
+      "Bash(git -C \"E:/Projects/CareBridge/backend\" remote -v)",
+      "Bash(git -C \"E:/Projects/CareBridge/backend\" branch --show-current)",
+      "Bash(git -C \"E:/Projects/CareBridge\" check-ignore backend)",
+      "Bash(git -C /e/Projects/CareBridge/backend status --short)",
+      "Bash(git -C /e/Projects/CareBridge/frontend status --short)",
+      "Bash(git -C /e/Projects/CareBridge status --short)",
+      "Bash(npm test *)",
+      "Bash(grep -n \"^    // ----.*1[0-9]$\\\\|b.h\\(1, 'Requirements Summary'\\)\" 02-srs.js)"
+    ]
+  }
+}

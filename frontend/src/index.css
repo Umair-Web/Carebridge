@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --bg-color: #f8fafc;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  color-scheme: light;
+}
+
+.dark {
+  --bg-color: #0b0f19;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Ensure input/textarea placeholders stay visible in both themes */
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af; /* slate-400 */
+  opacity: 1;
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b; /* slate-500 — readable on dark surfaces */
+  opacity: 1;
+}
+
+/*
+ * Dark-mode form fields.
+ * Many forms use light-only field utilities (bg-slate-50 / bg-white / no color),
+ * so in dark mode their typed values become unreadable (light text on a light field).
+ * Force a consistent dark field appearance. Specificity (.dark + element = 0,1,1)
+ * intentionally overrides single-class light utilities; checkbox/radio/range/file
+ * are excluded via :where() so toggles keep their native rendering.
+ */
+.dark input:where(:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'])),
+.dark textarea,
+.dark select {
+  background-color: #0f172a; /* slate-900 */
+  color: #f1f5f9;            /* slate-100 */
+  border-color: #334155;     /* slate-700 */
+}
+.dark input:where(:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'])):focus,
+.dark textarea:focus,
+.dark select:focus {
+  background-color: #1e293b; /* slate-800 */
+  border-color: #3b82f6;     /* blue-500 — preserve focus affordance */
+}
+.dark select option {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .bg-brand {
+    background-color: var(--primary, #2563eb);
+  }
+  .text-brand {
+    color: var(--primary, #2563eb);
+  }
+  .border-brand {
+    border-color: var(--primary, #2563eb);
+  }
+  .btn-brand {
+    background-color: var(--primary, #2563eb);
+    color: white;
+  }
+  .btn-brand:hover {
+    filter: brightness(0.92);
+  }
+}
