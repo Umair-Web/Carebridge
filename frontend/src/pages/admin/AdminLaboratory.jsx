@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import Loader from '../../components/Loader';
 import LabReferralDetailModal from '../../components/LabReferralDetailModal';
 import { downloadPdf } from '../../utils/downloadFile';
+import { labDetailsViewAccessOf } from '../../utils/referralAccess';
 
 const SUBTABS = [
   { key: 'labs', label: 'Labs', icon: FlaskConical },
@@ -439,18 +440,30 @@ const ReferralsPanel = () => {
             <th className="text-left px-4 py-3 font-semibold">Consultant</th>
             <th className="text-left px-4 py-3 font-semibold">Lab</th>
             <th className="text-left px-4 py-3 font-semibold">Status</th>
+            <th className="text-left px-4 py-3 font-semibold">Consultant view</th>
             <th className="text-left px-4 py-3 font-semibold">Bill</th>
             <th className="px-4 py-3"></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-          {referrals.map((r) => (
+          {referrals.map((r) => {
+            const access = labDetailsViewAccessOf(r);
+            return (
             <tr key={r._id} onClick={() => setDetailId(r._id)} className="cursor-pointer hover:bg-sky-50/50 dark:hover:bg-sky-950/10 transition-colors">
               <td className="px-4 py-3 font-mono text-xs font-bold text-sky-600">{r.referralCode}</td>
               <td className="px-4 py-3">{r.patientName}</td>
               <td className="px-4 py-3">{r.consultantId?.userId?.name || '—'}</td>
               <td className="px-4 py-3">{r.targetLaboratoryId?.labName || '—'}</td>
               <td className="px-4 py-3"><span className="text-xs font-bold capitalize">{r.status}</span></td>
+              <td className="px-4 py-3">
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                  access === 'active'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                }`}>
+                  {access}
+                </span>
+              </td>
               <td className="px-4 py-3 tabular-nums">{r.billTotalPaisa ? formatPkr(r.billTotalPaisa) : '—'}</td>
               <td className="px-4 py-3 text-right">
                 <button
@@ -462,7 +475,8 @@ const ReferralsPanel = () => {
                 </button>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       {detailId && (

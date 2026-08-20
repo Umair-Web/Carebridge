@@ -50,7 +50,7 @@ const LabDashboard = () => {
         <StatCard icon={CheckCircle2} label="Closed" value={c.closed || 0} tone="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" />
       </div>
 
-      <div className="bg-slate-900 text-white rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+      {/* <div className="bg-slate-900 text-white rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
         <div className="flex items-center gap-3">
           <Banknote className="w-7 h-7 text-sky-400" />
           <div>
@@ -64,7 +64,7 @@ const LabDashboard = () => {
         >
           Go to Settlements <ArrowRight size={16} />
         </Link>
-      </div>
+      </div> */}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link to="/lab/inbox" className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 hover:border-sky-400 transition-colors">

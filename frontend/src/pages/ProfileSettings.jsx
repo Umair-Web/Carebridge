@@ -387,7 +387,7 @@ const ProfileSettings = () => {
                   </div>
                 </div>
 
-                {/* Consultant Wallet / Payout Settings */}
+                {/* Consultant Wallet / Payout Settings — hidden for now
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider">
                     <CreditCard size={16} className="text-emerald-600" />
@@ -473,6 +473,7 @@ const ProfileSettings = () => {
                     </div>
                   </div>
                 </div>
+                */}
 
                 <div className="space-y-4">
                   <div className="flex items-center gap-2 text-slate-900 font-bold text-xs uppercase tracking-wider">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Eye, Search, CheckCircle, XCircle, Stethoscope, FileText, Wallet, Clock, TrendingUp, MapPin, Building, Activity, Shield, Download } from 'lucide-react';
+import { Users, Eye, Search, CheckCircle, XCircle, Stethoscope, FileText, Wallet, Clock, TrendingUp, MapPin, Building, Activity, Shield, Download, Lock, X } from 'lucide-react';
 import { downloadPdf } from '../../utils/downloadFile';
 import api from '../../utils/api';
 import toast from 'react-hot-toast';
@@ -72,6 +72,10 @@ const AdminConsultants = () => {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
   const [actionId, setActionId] = useState(null);
+  const [pendingView, setPendingView] = useState(null);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [profileUnlockToken, setProfileUnlockToken] = useState(null);
   
   const [profileData, setProfileData] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
@@ -105,7 +109,9 @@ const AdminConsultants = () => {
       setActionId(selected._id);
       await api.post(`/admin/consultants/${selected._id}/commission`, commForm);
       toast.success('Commission settings updated');
-      const res = await api.get(`/admin/consultants/${selected._id}/profile`);
+      const res = await api.get(`/admin/consultants/${selected._id}/profile`, {
+        headers: { 'X-Profile-Unlock': profileUnlockToken },
+      });
       if (res.data.success) setProfileData(res.data.data);
       await load();
     } catch (err) {
@@ -116,39 +122,88 @@ const AdminConsultants = () => {
   };
 
   useEffect(() => {
-    if (!selected) {
+    if (!selected || !profileUnlockToken) {
       setProfileData(null);
       return;
     }
     const fetchProfile = async () => {
       try {
         setLoadingProfile(true);
-        const res = await api.get(`/admin/consultants/${selected._id}/profile`);
+        const res = await api.get(`/admin/consultants/${selected._id}/profile`, {
+          headers: { 'X-Profile-Unlock': profileUnlockToken },
+        });
         if (res.data.success) {
           setProfileData(res.data.data);
         }
       } catch (err) {
-        toast.error('Failed to load full consultant profile details');
+        toast.error(err.response?.data?.message || 'Failed to load full consultant profile details');
+        setSelected(null);
+        setProfileUnlockToken(null);
       } finally {
         setLoadingProfile(false);
       }
     };
     fetchProfile();
-  }, [selected]);
+  }, [selected, profileUnlockToken]);
 
   useEffect(() => {
-    if (!selected?._id) {
+    if (!selected?._id || !profileUnlockToken) {
       setPatients([]);
       return;
     }
     setPatientsLoading(true);
-    api.get(`/admin/consultants/${selected._id}/patients`)
+    api.get(`/admin/consultants/${selected._id}/patients`, {
+      headers: { 'X-Profile-Unlock': profileUnlockToken },
+    })
       .then((res) => {
         if (res.data.success) setPatients(res.data.data || []);
       })
       .catch(() => toast.error('Failed to load referred patients'))
       .finally(() => setPatientsLoading(false));
-  }, [selected?._id]);
+  }, [selected?._id, profileUnlockToken]);
+
+  const requestView = (consultant) => {
+    setPendingView(consultant);
+    setUnlockPassword('');
+  };
+
+  const closePasswordGate = () => {
+    setPendingView(null);
+    setUnlockPassword('');
+    setUnlocking(false);
+  };
+
+  const closeDetail = () => {
+    setSelected(null);
+    setProfileData(null);
+    setProfileUnlockToken(null);
+    setConsultantEditOpen(false);
+  };
+
+  const submitUnlock = async (e) => {
+    e.preventDefault();
+    if (!pendingView?._id) return;
+    if (!unlockPassword) {
+      toast.error('Enter the consultant password');
+      return;
+    }
+    setUnlocking(true);
+    try {
+      const res = await api.post(`/admin/consultants/${pendingView._id}/verify-password`, {
+        password: unlockPassword,
+      });
+      if (res.data.success && res.data.unlockToken) {
+        setProfileUnlockToken(res.data.unlockToken);
+        setSelected(pendingView);
+        closePasswordGate();
+        toast.success('Access granted');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Incorrect password');
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -185,7 +240,7 @@ const AdminConsultants = () => {
         const res = await api.delete(`/admin/users/${userId}`);
         if (res.data.success) {
           toast.success('User deleted successfully');
-          setSelected(null);
+          closeDetail();
           await load();
         }
       } catch (err) {
@@ -217,7 +272,9 @@ const AdminConsultants = () => {
       await api.patch(`/admin/consultants/${selected._id}`, consultantEditForm);
       toast.success('Consultant profile updated');
       setConsultantEditOpen(false);
-      const res = await api.get(`/admin/consultants/${selected._id}/profile`);
+      const res = await api.get(`/admin/consultants/${selected._id}/profile`, {
+        headers: { 'X-Profile-Unlock': profileUnlockToken },
+      });
       if (res.data.success) setProfileData(res.data.data);
       await load();
     } catch (err) {
@@ -285,20 +342,21 @@ const AdminConsultants = () => {
           <thead className="bg-slate-50 text-slate-500 text-left">
             <tr>
               <th className="px-5 py-3.5 font-semibold">Consultant</th>
-              <th className="px-5 py-3.5 font-semibold">PMDC / Specialty</th>
-              <th className="px-5 py-3.5 font-semibold">Phone</th>
-              <th className="px-5 py-3.5 font-semibold">Wallet Balance</th>
-              <th className="px-5 py-3.5 font-semibold">Status</th>
-              <th className="px-5 py-3.5 font-semibold">Actions</th>
+              <th className="px-5 py-3.5 font-semibold">Specialty</th>
+              {/* <th className="px-5 py-3.5 font-semibold">PMDC / Specialty</th> */}
+              {/* <th className="px-5 py-3.5 font-semibold">Phone</th> */}
+              {/* <th className="px-5 py-3.5 font-semibold">Wallet Balance</th> */}
+              {/* <th className="px-5 py-3.5 font-semibold">Status</th> */}
+              {/* <th className="px-5 py-3.5 font-semibold">Actions</th> */}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
             {filtered.length === 0 ? (
-              <tr><td colSpan={6} className="px-5 py-12 text-center text-slate-500">No consultants found.</td></tr>
+              <tr><td colSpan={2} className="px-5 py-12 text-center text-slate-500">No consultants found.</td></tr>
             ) : filtered.map(c => (
               <tr key={c._id}
                 className="hover:bg-blue-50/30 transition-colors cursor-pointer"
-                onClick={() => setSelected(c)}
+                onClick={() => requestView(c)}
               >
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-3">
@@ -312,19 +370,19 @@ const AdminConsultants = () => {
                   </div>
                 </td>
                 <td className="px-5 py-4">
-                  <p className="font-mono text-xs font-medium text-slate-700">{c.profile?.pmdcNumber || '—'}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{c.profile?.specialty || '—'}</p>
+                  {/* <p className="font-mono text-xs font-medium text-slate-700">{c.profile?.pmdcNumber || '—'}</p> */}
+                  <p className="text-xs text-slate-500">{c.profile?.specialty || '—'}</p>
                 </td>
-                <td className="px-5 py-4 text-slate-600 text-xs">{c.phone || '—'}</td>
-                <td className="px-5 py-4 font-semibold text-slate-800 text-xs">
+                {/* <td className="px-5 py-4 text-slate-600 text-xs">{c.phone || '—'}</td> */}
+                {/* <td className="px-5 py-4 font-semibold text-slate-800 text-xs">
                   PKR {((c.profile?.walletBalance || 0) / 100).toLocaleString()}
-                </td>
-                <td className="px-5 py-4">
+                </td> */}
+                {/* <td className="px-5 py-4">
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-lg capitalize ${statusBadge(c.status)}`}>
                     {c.status}
                   </span>
-                </td>
-                <td className="px-5 py-4">
+                </td> */}
+                {/* <td className="px-5 py-4">
                   <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     <button onClick={() => setSelected(c)}
                       className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors">
@@ -347,17 +405,78 @@ const AdminConsultants = () => {
                       {actionId === c._id ? '…' : c.status === 'active' ? 'Suspend' : 'Activate'}
                     </button>
                   </div>
-                </td>
+                </td> */}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
+      {/* Password gate — must verify consultant password before opening profile */}
+      {pendingView && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closePasswordGate} />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <Lock size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Password required</h3>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    Enter the login password for <span className="font-semibold text-slate-700">{pendingView.name}</span> to view their profile.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closePasswordGate}
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={submitUnlock} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  Consultant password
+                </label>
+                <input
+                  type="password"
+                  autoFocus
+                  value={unlockPassword}
+                  onChange={(e) => setUnlockPassword(e.target.value)}
+                  placeholder="Enter consultant password"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closePasswordGate}
+                  className="px-4 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={unlocking}
+                  className="px-4 py-2.5 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {unlocking ? 'Verifying…' : 'Unlock profile'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Detail Slide-over */}
       <DetailModal
         isOpen={!!selected}
-        onClose={() => setSelected(null)}
+        onClose={closeDetail}
         title={selected?.name || ''}
         subtitle={`Consultant · ${selected?.email}`}
       >
@@ -365,23 +484,23 @@ const AdminConsultants = () => {
           <div className="space-y-6">
             {/* Header info */}
             <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-700 font-black text-xl flex items-center justify-center shrink-0">
-                    {selected.name?.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">{selected.name}</h3>
-                    <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md capitalize ${statusBadge(selected.status)}`}>
-                      {selected.status}
-                    </span>
-                  </div>
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-700 font-black text-xl flex items-center justify-center shrink-0">
+                  {selected.name?.charAt(0)}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-slate-900 truncate">{selected.name}</h3>
+                  <span className={`inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-md capitalize ${statusBadge(selected.status)}`}>
+                    {selected.status}
+                  </span>
+                </div>
+              </div>
+              <div className="overflow-x-auto overscroll-x-contain -mx-1 px-1 pb-1">
+                <div className="flex items-center gap-2 w-max">
                   <button
                     onClick={() => toggleStatus(selected._id, selected.status)}
                     disabled={actionId === selected._id}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                    className={`inline-flex h-9 items-center justify-center gap-1.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 transition-all ${
                       selected.status === 'active'
                         ? 'bg-red-50 text-red-600 hover:bg-red-100'
                         : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -392,26 +511,26 @@ const AdminConsultants = () => {
                   <button
                     type="button"
                     onClick={openConsultantEdit}
-                    className="px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition-all"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all"
                   >
                     Edit profile
                   </button>
                   <button
                     type="button"
                     onClick={() => downloadPdf(`/exports/admin/consultants/${selected._id}`, `Consultant_${(selected.name || 'file').replace(/\s+/g, '_')}.pdf`)}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-xs font-bold transition-all"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 bg-blue-600 text-white hover:bg-blue-700 transition-all"
                   >
-                    <Download size={14} /> Download File
+                    <Download size={14} className="shrink-0" /> Download File
                   </button>
                   <button
                     onClick={() => handleChangePassword(selected._id)}
-                    className="px-3 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold transition-all"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all"
                   >
                     🔑 Password
                   </button>
                   <button
                     onClick={() => handleDelete(selected._id)}
-                    className="px-3 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-bold transition-all"
+                    className="inline-flex h-9 items-center justify-center gap-1.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all"
                   >
                     🗑️ Delete
                   </button>

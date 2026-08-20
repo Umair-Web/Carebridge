@@ -1,20 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Activity, AlertCircle, Search, Edit2, Trash2, X, Check, Eye, Download } from 'lucide-react';
+import { Activity, AlertCircle, Search, Edit2, Trash2, X, Check, Eye, Download, KeyRound } from 'lucide-react';
 import { downloadPdf } from '../../utils/downloadFile';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
 import Loader from '../../components/Loader';
 import DetailModal from '../../components/DetailModal';
 import DobPicker from '../../components/DobPicker';
+import ReferralDetailsPasswordGate from '../../components/ReferralDetailsPasswordGate';
 import { ageFromDob, formatDob, formatAge, ageLabel } from '../../utils/dob';
+import { detailsViewAccessOf } from '../../utils/referralAccess';
 
 const AdminReferrals = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRef, setSelectedRef] = useState(null);
+  const [pendingUnlock, setPendingUnlock] = useState(null);
+  const [detailsUnlocked, setDetailsUnlocked] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [deleteConfirmStep, setDeleteConfirmStep] = useState(0); // 0: none, 1: first click, 2: typing name
+  const [changingDetailsPassword, setChangingDetailsPassword] = useState(false);
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -75,6 +80,14 @@ const AdminReferrals = () => {
     }
   }, [isEditing, editForm.status, selectedRef?.targetHospitalId?._id]);
 
+  const closeDetail = () => {
+    setSelectedRef(null);
+    setDetailsUnlocked(false);
+    setIsEditing(false);
+    setDeleteConfirmStep(0);
+    setChangingDetailsPassword(false);
+  };
+
   const updateMutation = useMutation({
     mutationFn: async ({ id, payload }) => {
       const res = await api.patch(`/admin/referrals/${id}`, payload);
@@ -83,8 +96,7 @@ const AdminReferrals = () => {
     onSuccess: (data) => {
       toast.success('Referral updated successfully');
       queryClient.invalidateQueries({ queryKey: ['admin-referrals'] });
-      setSelectedRef(null);
-      setIsEditing(false);
+      closeDetail();
     },
     onError: (err) => {
       toast.error(err.response?.data?.message || 'Failed to update referral');
@@ -99,13 +111,54 @@ const AdminReferrals = () => {
     onSuccess: () => {
       toast.success('Referral deleted successfully');
       queryClient.invalidateQueries({ queryKey: ['admin-referrals'] });
-      setSelectedRef(null);
-      setDeleteConfirmStep(0);
+      closeDetail();
     },
     onError: (err) => {
       toast.error(err.response?.data?.message || 'Failed to delete referral');
     },
   });
+
+  const requestView = (ref) => {
+    setPendingUnlock(ref);
+  };
+
+  const toggleDetailsViewAccess = async () => {
+    if (!selectedRef?._id) return;
+    const next = detailsViewAccessOf(selectedRef) === 'active' ? 'suspended' : 'active';
+    try {
+      const res = await api.patch(`/admin/referrals/${selectedRef._id}/details-view-access`, {
+        detailsViewAccess: next,
+      });
+      if (res.data.success) {
+        setSelectedRef((prev) => ({ ...prev, detailsViewAccess: next }));
+        queryClient.invalidateQueries({ queryKey: ['admin-referrals'] });
+        toast.success(res.data.message || `View access set to ${next}`);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update view access');
+    }
+  };
+
+  const handleChangeDetailsPassword = async () => {
+    if (!selectedRef?._id) return;
+    const newPass = window.prompt('Enter new patient details password (minimum 6 characters):');
+    if (newPass == null) return;
+    if (newPass.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+    setChangingDetailsPassword(true);
+    try {
+      const res = await api.post(`/admin/referrals/${selectedRef._id}/change-details-password`, {
+        password: newPass,
+      });
+      if (res.data.success) toast.success('Patient details password updated');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to change password');
+    } finally {
+      setChangingDetailsPassword(false);
+    }
+  };
 
   if (isLoading) {
     return <Loader message="Loading referrals..." />;
@@ -243,11 +296,7 @@ const AdminReferrals = () => {
                     <td className="px-4 py-3 text-right">
                       <div className="inline-flex items-center gap-1">
                         <button
-                          onClick={() => {
-                            setSelectedRef(ref);
-                            setIsEditing(false);
-                            setDeleteConfirmStep(0);
-                          }}
+                          onClick={() => requestView(ref)}
                           className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
                         >
                           <Eye className="w-3.5 h-3.5" /> Details
@@ -276,14 +325,25 @@ const AdminReferrals = () => {
         </div>
       </div>
 
+      {pendingUnlock && (
+        <ReferralDetailsPasswordGate
+          referral={pendingUnlock}
+          verifyPath={`/admin/referrals/${pendingUnlock._id}/verify-details-password`}
+          onClose={() => setPendingUnlock(null)}
+          onUnlocked={() => {
+            setSelectedRef(pendingUnlock);
+            setDetailsUnlocked(true);
+            setIsEditing(false);
+            setDeleteConfirmStep(0);
+            setPendingUnlock(null);
+          }}
+        />
+      )}
+
       {/* Details Slide-Over */}
       <DetailModal
-        isOpen={!!selectedRef}
-        onClose={() => {
-          setSelectedRef(null);
-          setIsEditing(false);
-          setDeleteConfirmStep(0);
-        }}
+        isOpen={!!selectedRef && detailsUnlocked}
+        onClose={closeDetail}
         title={`Referral Details`}
         subtitle={selectedRef ? `${selectedRef.patientName} (${selectedRef.referralCode})` : ''}
         wide={isEditing}
@@ -293,6 +353,34 @@ const AdminReferrals = () => {
             {!isEditing ? (
               // View Mode
               <>
+                <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-slate-100">
+                  <span className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                    detailsViewAccessOf(selectedRef) === 'active'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-amber-50 text-amber-700'
+                  }`}>
+                    External view: {detailsViewAccessOf(selectedRef)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={toggleDetailsViewAccess}
+                    className={`inline-flex h-9 items-center gap-1.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                      detailsViewAccessOf(selectedRef) === 'active'
+                        ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {detailsViewAccessOf(selectedRef) === 'active' ? 'Suspend' : 'Activate'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleChangeDetailsPassword}
+                    disabled={changingDetailsPassword}
+                    className="inline-flex h-9 items-center gap-1.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all disabled:opacity-50"
+                  >
+                    <KeyRound size={14} /> {changingDetailsPassword ? '…' : 'Change password'}
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl text-sm border border-slate-100">
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Patient Name</span>

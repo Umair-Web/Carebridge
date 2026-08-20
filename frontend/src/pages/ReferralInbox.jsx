@@ -6,6 +6,7 @@ import { useInbox } from '../hooks/useReferrals';
 import ClinicalNotesLog from '../components/ClinicalNotesLog';
 import Loader from '../components/Loader';
 import { formatDob, ageLabel } from '../utils/dob';
+import { detailsViewAccessOf } from '../utils/referralAccess';
 
 function formatSlaCountdown(deadline, now) {
   if (!deadline) return '—';
@@ -35,10 +36,44 @@ const ReferralInbox = () => {
   const [departments, setDepartments] = useState([]);
   const [now, setNow]               = useState(() => Date.now());
   const [expandedId, setExpandedId] = useState(null);   // expanded detail card
+  const [expandedData, setExpandedData] = useState({});
   const [acceptFor, setAcceptFor]   = useState(null);   // accept modal
   const [deptChoice, setDeptChoice] = useState('');
   const [rejectFor, setRejectFor]   = useState(null);   // reject modal
   const [rejectReason, setRejectReason] = useState('');
+
+  const requestExpand = async (referral) => {
+    const id = referral._id;
+    if (expandedId === id) {
+      setExpandedId(null);
+      return;
+    }
+    if (detailsViewAccessOf(referral) !== 'active') {
+      toast.error('Patient details viewing is suspended by admin');
+      setExpandedId(null);
+      setExpandedData((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    try {
+      const res = await api.get(`/referrals/${id}`);
+      if (res.data.success) {
+        setExpandedData((prev) => ({ ...prev, [id]: res.data.data }));
+        setExpandedId(id);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Patient details viewing is suspended by admin');
+      setExpandedId(null);
+      setExpandedData((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }
+  };
 
   const loadDepartments = useCallback(async () => {
     try {
@@ -96,16 +131,18 @@ const ReferralInbox = () => {
           const styles        = urgencyStyles[referral.urgency] || urgencyStyles.routine;
           const slaText       = formatSlaCountdown(referral.slaDeadline, now);
           const isExpanded    = expandedId === referral._id;
+          const detail        = expandedData[referral._id];
+          const canViewDetails = detailsViewAccessOf(referral) === 'active' && !!detail;
           const consultantName = referral.consultantId?.userId?.name || 'Referring consultant';
 
           return (
             <div key={referral._id}
-              className={`bg-white border-2 rounded-2xl shadow-sm transition-all ${styles.card} ${isExpanded ? 'shadow-md' : 'hover:shadow-md'}`}
+              className={`bg-white border-2 rounded-2xl shadow-sm transition-all ${styles.card} ${isExpanded && canViewDetails ? 'shadow-md' : 'hover:shadow-md'}`}
             >
               {/* Card Header — always visible, click to expand */}
               <div
                 className="p-5 sm:p-6 cursor-pointer select-none"
-                onClick={() => setExpandedId(isExpanded ? null : referral._id)}
+                onClick={() => requestExpand(referral)}
               >
                 <div className="flex items-start justify-between gap-4 flex-wrap">
                   <div className="flex gap-4 min-w-0">
@@ -145,61 +182,61 @@ const ReferralInbox = () => {
                         {slaText}
                       </p>
                     </div>
-                    {isExpanded ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                    {isExpanded && canViewDetails ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
                   </div>
                 </div>
               </div>
 
-              {/* Expanded details */}
-              {isExpanded && (
+              {/* Expanded details — only after server confirms active access */}
+              {isExpanded && canViewDetails && (
                 <div className="border-t border-slate-100 px-5 pb-6 pt-4 space-y-5">
                   {/* Patient + Clinical grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl">
-                    <Field label="Patient Name"   value={referral.patientName} />
-                    <Field label="Date of Birth"  value={formatDob(referral.dateOfBirth) || null} />
-                    <Field label="Age / Gender"   value={`${ageLabel(referral)} · ${referral.gender}`} />
-                    <Field label="Phone"          value={referral.phone} />
-                    <Field label="Patient CNIC"   value={referral.cnic} />
-                    <Field label="Guardian"       value={[referral.guardianRelation, referral.guardianName].filter(Boolean).join(' ')} />
-                    <Field label="Area"           value={referral.area} />
-                    <Field label="Department"     value={referral.department} />
+                    <Field label="Patient Name"   value={detail.patientName} />
+                    <Field label="Date of Birth"  value={formatDob(detail.dateOfBirth) || null} />
+                    <Field label="Age / Gender"   value={`${ageLabel(detail)} · ${detail.gender}`} />
+                    <Field label="Phone"          value={detail.phone} />
+                    <Field label="Patient CNIC"   value={detail.cnic} />
+                    <Field label="Guardian"       value={[detail.guardianRelation, detail.guardianName].filter(Boolean).join(' ')} />
+                    <Field label="Area"           value={detail.area} />
+                    <Field label="Department"     value={detail.department} />
                   </div>
 
-                  {referral.summaryNotes && (
+                  {detail.summaryNotes && (
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Clinical Summary (Consultant)</p>
-                      <p className="text-sm text-slate-700 italic border-l-4 border-blue-200 pl-3 py-2 bg-blue-50/30 rounded-r-xl">{referral.summaryNotes}</p>
+                      <p className="text-sm text-slate-700 italic border-l-4 border-blue-200 pl-3 py-2 bg-blue-50/30 rounded-r-xl">{detail.summaryNotes}</p>
                     </div>
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {referral.symptomsText && (
+                    {detail.symptomsText && (
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Symptoms</p>
-                        <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-4 py-3">{referral.symptomsText}</p>
+                        <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-4 py-3">{detail.symptomsText}</p>
                       </div>
                     )}
 
-                    {referral.diagnosisText && (
+                    {detail.diagnosisText && (
                       <div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Provisional Diagnosis</p>
-                        <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-4 py-3">{referral.diagnosisText}</p>
+                        <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-4 py-3">{detail.diagnosisText}</p>
                       </div>
                     )}
                   </div>
 
-                  {referral.notes && (
+                  {detail.notes && (
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Internal Notes</p>
-                      <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-4 py-3">{referral.notes}</p>
+                      <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-4 py-3">{detail.notes}</p>
                     </div>
                   )}
 
-                  {referral.attachments && referral.attachments.length > 0 && (
+                  {detail.attachments && detail.attachments.length > 0 && (
                     <div>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Uploaded Medical Reports & Attachments</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {referral.attachments.map((url, idx) => {
+                        {detail.attachments.map((url, idx) => {
                           const name = url.split('/').pop() || `Attachment_${idx + 1}`;
                           return (
                             <a 
@@ -221,7 +258,7 @@ const ReferralInbox = () => {
                   <div className="border-t border-slate-100 pt-5">
                     <ClinicalNotesLog 
                       referralId={referral._id} 
-                      initialNotes={referral.clinicalNotes} 
+                      initialNotes={detail.clinicalNotes || []} 
                       onNoteAdded={() => refetch()} 
                     />
                   </div>

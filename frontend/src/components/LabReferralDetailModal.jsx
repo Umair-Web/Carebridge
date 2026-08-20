@@ -6,6 +6,7 @@ import { formatPkr } from '../utils/formatPkr';
 import toast from 'react-hot-toast';
 import DobPicker from './DobPicker';
 import { ageFromDob, formatDob, formatAge, ageLabel } from '../utils/dob';
+import { labDetailsViewAccessOf } from '../utils/referralAccess';
 
 const STATUS_BADGE = {
   pending: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
@@ -34,17 +35,19 @@ const toLocalDT = (d) => {
 
 /**
  * Full lab-referral detail. Read-only for consultants; admins (editable=true) get an inline edit form
- * that saves via PATCH /admin/labs/referrals/:id.
+ * that saves via PATCH /admin/labs/referrals/:id. Admin can Activate/Suspend consultant view (no password).
  */
 const LabReferralDetailModal = ({ referralId, editable = false, onClose, onSaved }) => {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [togglingAccess, setTogglingAccess] = useState(false);
 
-  const { data: referral, isLoading } = useQuery({
+  const { data: referral, isLoading, isError, error } = useQuery({
     queryKey: ['lab-referral-detail', referralId],
     queryFn: async () => (await api.get(`/lab-referrals/${referralId}`)).data.data,
+    retry: false,
   });
 
   useEffect(() => {
@@ -71,6 +74,30 @@ const LabReferralDetailModal = ({ referralId, editable = false, onClose, onSaved
   }, [referral, form]);
 
   const setF = (k, v) => setForm((p) => ({ ...p, [k]: v }));
+
+  const toggleDetailsViewAccess = async () => {
+    if (!referral?._id) return;
+    const next = labDetailsViewAccessOf(referral) === 'active' ? 'suspended' : 'active';
+    try {
+      setTogglingAccess(true);
+      const res = await api.patch(`/admin/labs/referrals/${referral._id}/details-view-access`, {
+        detailsViewAccess: next,
+      });
+      if (res.data.success) {
+        queryClient.setQueryData(['lab-referral-detail', referralId], (prev) =>
+          prev ? { ...prev, detailsViewAccess: next } : prev
+        );
+        queryClient.invalidateQueries({ queryKey: ['admin-lab-referrals'] });
+        queryClient.invalidateQueries({ queryKey: ['my-lab-referrals'] });
+        toast.success(res.data.message || `Consultant view set to ${next}`);
+        onSaved?.();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update view access');
+    } finally {
+      setTogglingAccess(false);
+    }
+  };
 
   const save = async () => {
     try {
@@ -113,11 +140,39 @@ const LabReferralDetailModal = ({ referralId, editable = false, onClose, onSaved
           </div>
         </div>
 
-        {isLoading || !referral || !form ? (
+        {isError ? (
+          <div className="p-10 text-center text-sm text-amber-700 dark:text-amber-400">
+            {error?.response?.data?.message || 'Patient details viewing is suspended by admin'}
+          </div>
+        ) : isLoading || !referral || !form ? (
           <div className="p-10 text-center text-slate-400 text-sm">Loading…</div>
         ) : !editing ? (
           // ── Read-only ──
           <div className="p-5 space-y-6">
+            {editable && (
+              <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <span className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                  labDetailsViewAccessOf(referral) === 'active'
+                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                    : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'
+                }`}>
+                  Consultant view: {labDetailsViewAccessOf(referral)}
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleDetailsViewAccess}
+                  disabled={togglingAccess}
+                  className={`inline-flex h-9 items-center gap-1.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap transition-all disabled:opacity-50 ${
+                    labDetailsViewAccessOf(referral) === 'active'
+                      ? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400'
+                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400'
+                  }`}
+                >
+                  {togglingAccess ? '…' : labDetailsViewAccessOf(referral) === 'active' ? 'Suspend' : 'Activate'}
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${STATUS_BADGE[referral.status]}`}>{referral.status}</span>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{referral.urgency}</span>
@@ -165,7 +220,7 @@ const LabReferralDetailModal = ({ referralId, editable = false, onClose, onSaved
               ) : <p className="text-xs text-slate-400">No reports uploaded.</p>}
             </section>
 
-            {(referral.services?.length > 0 || referral.billTotalPaisa != null) && (
+            {(editable || referral.status !== 'closed') && (referral.services?.length > 0 || referral.billTotalPaisa != null) && (
               <section className="bg-slate-900 text-white rounded-xl p-4 space-y-2 text-sm">
                 {(referral.services || []).map((s, i) => (
                   <div key={i} className="flex justify-between text-slate-300"><span>{s.description}</span><span className="tabular-nums">{formatPkr(s.amountPaisa)}</span></div>

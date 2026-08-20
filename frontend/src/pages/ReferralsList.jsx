@@ -10,6 +10,7 @@ import Loader from '../components/Loader';
 import { downloadPdf } from '../utils/downloadFile';
 import DobPicker from '../components/DobPicker';
 import { ageFromDob, formatDob, formatAge, ageLabel } from '../utils/dob';
+import { detailsViewAccessOf } from '../utils/referralAccess';
 
 const EDITABLE_STATUSES = ['pending', 'accepted', 'rejected'];
 
@@ -196,14 +197,19 @@ const ReferralsList = () => {
                       className="hover:bg-blue-50/40 transition-all cursor-pointer"
                       onClick={async () => {
                         setIsEditing(false);
-                        setSelected(r);
+                        if (detailsViewAccessOf(r) !== 'active') {
+                          toast.error('Patient details viewing is suspended by admin');
+                          setSelected(null);
+                          return;
+                        }
                         try {
                           const res = await api.get(`/referrals/${r._id}`);
                           if (res.data.success) {
                             setSelected(res.data.data);
                           }
                         } catch (err) {
-                          console.error('Failed to load referral details:', err);
+                          toast.error(err.response?.data?.message || 'Patient details viewing is suspended by admin');
+                          setSelected(null);
                         }
                       }}
                     >

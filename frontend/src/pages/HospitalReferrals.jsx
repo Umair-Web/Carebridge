@@ -6,6 +6,8 @@ import ClinicalNotesLog from '../components/ClinicalNotesLog';
 import Loader from '../components/Loader';
 import { downloadPdf } from '../utils/downloadFile';
 import { ageLabel } from '../utils/dob';
+import { detailsViewAccessOf } from '../utils/referralAccess';
+import toast from 'react-hot-toast';
 
 const urgencyStyles = {
   emergency: { card: 'border-red-200',   badge: 'bg-red-50 text-red-600 border-red-100',    text: 'text-red-600' },
@@ -35,21 +37,37 @@ const HospitalReferrals = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const toggleExpand = async (id) => {
+  const toggleExpand = async (referral) => {
+    const id = referral._id;
     if (expandedId === id) {
       setExpandedId(null);
-    } else {
-      setExpandedId(id);
-      if (!expandedData[id]) {
-        try {
-          const res = await api.get(`/referrals/${id}`);
-          if (res.data.success) {
-            setExpandedData(prev => ({ ...prev, [id]: res.data.data }));
-          }
-        } catch (err) {
-          console.error('Failed to load referral details', err);
-        }
+      return;
+    }
+    if (detailsViewAccessOf(referral) !== 'active') {
+      toast.error('Patient details viewing is suspended by admin');
+      setExpandedId(null);
+      setExpandedData((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    // Always re-check with the server so a mid-session Suspend cannot leave details open.
+    try {
+      const res = await api.get(`/referrals/${id}`);
+      if (res.data.success) {
+        setExpandedData((prev) => ({ ...prev, [id]: res.data.data }));
+        setExpandedId(id);
       }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Patient details viewing is suspended by admin');
+      setExpandedId(null);
+      setExpandedData((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
     }
   };
 
@@ -128,6 +146,8 @@ const HospitalReferrals = () => {
           filteredReferrals.map((referral) => {
             const styles = urgencyStyles[referral.urgency] || urgencyStyles.routine;
             const isExpanded = expandedId === referral._id;
+            const detail = expandedData[referral._id];
+            const canViewDetails = detailsViewAccessOf(referral) === 'active' && !!detail;
             const consultantName = referral.consultantId?.userId?.name || 'Referring consultant';
 
             return (
@@ -135,12 +155,12 @@ const HospitalReferrals = () => {
                 key={referral._id}
                 className={`bg-white dark:bg-slate-900 border-2 rounded-2xl shadow-sm transition-all overflow-hidden ${
                   styles.card
-                } ${isExpanded ? 'shadow-md ring-1 ring-blue-500/20' : 'hover:shadow-md'}`}
+                } ${isExpanded && canViewDetails ? 'shadow-md ring-1 ring-blue-500/20' : 'hover:shadow-md'}`}
               >
                 {/* Header Section (Always Visible) */}
                 <div
                   className="p-5 sm:p-6 cursor-pointer select-none"
-                  onClick={() => toggleExpand(referral._id)}
+                  onClick={() => toggleExpand(referral)}
                 >
                   <div className="flex items-start justify-between gap-4 flex-wrap">
                     <div className="flex gap-4 min-w-0">
@@ -195,7 +215,7 @@ const HospitalReferrals = () => {
                           {new Date(referral.createdAt).toLocaleDateString()}
                         </p>
                       </div>
-                      {isExpanded ? (
+                      {isExpanded && canViewDetails ? (
                         <ChevronUp size={18} className="text-slate-400" />
                       ) : (
                         <ChevronDown size={18} className="text-slate-400" />
@@ -204,8 +224,8 @@ const HospitalReferrals = () => {
                   </div>
                 </div>
 
-                {/* Expanded Details Section */}
-                {isExpanded && (
+                {/* Expanded Details Section — only after server unlock/active check */}
+                {isExpanded && canViewDetails && (
                   <div className="border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/10 p-6 space-y-6">
                     {/* Download this record */}
                     <div className="flex justify-end">
@@ -223,10 +243,10 @@ const HospitalReferrals = () => {
 
                     {/* Patient & Financial Details Grid */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-sm">
-                      <Field label="Phone Number" value={referral.phone} />
-                      <Field label="Patient CNIC" value={referral.cnic} />
-                      <Field label="Guardian" value={[referral.guardianRelation, referral.guardianName].filter(Boolean).join(' ')} />
-                      <Field label="Area / Location" value={referral.area} />
+                      <Field label="Phone Number" value={detail.phone} />
+                      <Field label="Patient CNIC" value={detail.cnic} />
+                      <Field label="Guardian" value={[detail.guardianRelation, detail.guardianName].filter(Boolean).join(' ')} />
+                      <Field label="Area / Location" value={detail.area} />
                     </div>
 
                     {/* Clinical Details */}
@@ -240,16 +260,16 @@ const HospitalReferrals = () => {
                             Symptoms Description
                           </p>
                           <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
-                            {referral.symptomsText || 'No symptom descriptions provided.'}
+                            {detail.symptomsText || 'No symptom descriptions provided.'}
                           </p>
                         </div>
-                        {referral.symptomTags && referral.symptomTags.length > 0 && (
+                        {detail.symptomTags && detail.symptomTags.length > 0 && (
                           <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                               Symptom Tags
                             </p>
                             <div className="flex flex-wrap gap-1.5">
-                              {referral.symptomTags.map((tag) => (
+                              {detail.symptomTags.map((tag) => (
                                 <span
                                   key={tag}
                                   className="text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md"
@@ -265,7 +285,7 @@ const HospitalReferrals = () => {
                             Diagnosis / Notes
                           </p>
                           <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
-                            {referral.diagnosisText || 'No diagnosis notes entered.'}
+                            {detail.diagnosisText || 'No diagnosis notes entered.'}
                           </p>
                         </div>
                       </div>
@@ -279,40 +299,40 @@ const HospitalReferrals = () => {
                           <div className="flex justify-between items-center text-xs">
                             <span className="text-slate-400 font-medium">Created At:</span>
                             <span className="font-bold text-slate-700 dark:text-slate-300">
-                              {new Date(referral.createdAt).toLocaleString()}
+                              {new Date(detail.createdAt).toLocaleString()}
                             </span>
                           </div>
-                          {referral.acceptedAt && (
+                          {detail.acceptedAt && (
                             <div className="flex justify-between items-center text-xs">
                               <span className="text-slate-400 font-medium">Accepted At:</span>
                               <span className="font-bold text-emerald-600">
-                                {new Date(referral.acceptedAt).toLocaleString()}
+                                {new Date(detail.acceptedAt).toLocaleString()}
                               </span>
                             </div>
                           )}
-                          {referral.admittedAt && (
+                          {detail.admittedAt && (
                             <div className="flex justify-between items-center text-xs">
                               <span className="text-slate-400 font-medium">Admitted At:</span>
                               <span className="font-bold text-blue-600">
-                                {new Date(referral.admittedAt).toLocaleString()}
+                                {new Date(detail.admittedAt).toLocaleString()}
                               </span>
                             </div>
                           )}
-                          {referral.closedAt && (
+                          {detail.closedAt && (
                             <div className="flex justify-between items-center text-xs">
                               <span className="text-slate-400 font-medium">Closed At:</span>
                               <span className="font-bold text-slate-700 dark:text-slate-300">
-                                {new Date(referral.closedAt).toLocaleString()}
+                                {new Date(detail.closedAt).toLocaleString()}
                               </span>
                             </div>
                           )}
-                          {referral.status === 'rejected' && referral.rejectionReason && (
+                          {detail.status === 'rejected' && detail.rejectionReason && (
                             <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 rounded-xl space-y-1">
                               <span className="text-[10px] font-bold text-red-700 dark:text-red-400 uppercase tracking-wider">
                                 Rejection Reason:
                               </span>
                               <p className="text-sm font-medium text-red-900 dark:text-red-300 leading-relaxed">
-                                {referral.rejectionReason}
+                                {detail.rejectionReason}
                               </p>
                             </div>
                           )}
@@ -324,7 +344,7 @@ const HospitalReferrals = () => {
                     <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
                       <ClinicalNotesLog
                         referralId={referral._id}
-                        initialNotes={referral.clinicalNotes || []}
+                        initialNotes={detail.clinicalNotes || []}
                         onNoteAdded={() => refetch()}
                       />
                     </div>

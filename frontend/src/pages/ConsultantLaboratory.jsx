@@ -13,6 +13,7 @@ import LabReferralDetailModal from '../components/LabReferralDetailModal';
 import AgeInput from '../components/AgeInput';
 import { ageFromDob } from '../utils/dob';
 import { downloadPdf as downloadRecordPdf } from '../utils/downloadFile';
+import { labDetailsViewAccessOf } from '../utils/referralAccess';
 
 const TABS = [
   { key: 'new', label: 'New Referral' },
@@ -303,18 +304,37 @@ const MyReferrals = () => {
           <Download size={16} /> Download All
         </button>
       </div>
-      {referrals.map((r) => (
+      {referrals.map((r) => {
+        const isSuspended = labDetailsViewAccessOf(r) === 'suspended';
+        return (
         <div
           key={r._id}
-          onClick={() => setDetailId(r._id)}
-          className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3 cursor-pointer hover:border-sky-300 dark:hover:border-sky-700 transition-colors"
+          onClick={() => {
+            if (isSuspended) {
+              toast.error('Patient details viewing is suspended by admin');
+              return;
+            }
+            setDetailId(r._id);
+          }}
+          className={`bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3 transition-colors ${
+            isSuspended
+              ? 'cursor-not-allowed opacity-80'
+              : 'cursor-pointer hover:border-sky-300 dark:hover:border-sky-700'
+          }`}
         >
           <div className="flex items-center justify-between gap-3">
             <div>
               <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400">{r.referralCode}</span>
               <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 ml-2">{r.patientName}</span>
             </div>
-            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${STATUS_BADGE[r.status]}`}>{r.status}</span>
+            <div className="flex items-center gap-2">
+              {isSuspended && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+                  View suspended
+                </span>
+              )}
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${STATUS_BADGE[r.status]}`}>{r.status}</span>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-1.5">
@@ -326,13 +346,18 @@ const MyReferrals = () => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div><span className="text-slate-400 font-bold uppercase block">Lab</span><span className="font-semibold text-slate-700 dark:text-slate-300">{r.targetLaboratoryId?.labName || '—'}</span></div>
             <div><span className="text-slate-400 font-bold uppercase block">Discount</span><span className="font-semibold">{r.discountPercentage || 0}%</span></div>
-            <div><span className="text-slate-400 font-bold uppercase block">Bill</span><span className="font-semibold tabular-nums">{r.billTotalPaisa ? formatPkr(r.billTotalPaisa) : '—'}</span></div>
+            <div>
+              <span className="text-slate-400 font-bold uppercase block">Bill</span>
+              <span className="font-semibold tabular-nums">
+                {r.status === 'closed' ? '—' : (r.billTotalPaisa ? formatPkr(r.billTotalPaisa) : '—')}
+              </span>
+            </div>
             <div><span className="text-slate-400 font-bold uppercase block">Expected Report</span><span className="font-semibold">{r.expectedReportAt ? new Date(r.expectedReportAt).toLocaleString() : '—'}</span></div>
           </div>
 
           {r.rejectionReason && <p className="text-xs text-red-600">Declined: {r.rejectionReason}</p>}
 
-          {r.reportFiles?.length > 0 && (
+          {!isSuspended && r.reportFiles?.length > 0 && (
             <div className="flex flex-wrap gap-2 border-t border-slate-50 dark:border-slate-800 pt-3">
               {r.reportFiles.map((f, i) => (
                 <a key={i} href={f.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 rounded-lg text-xs font-bold hover:bg-emerald-100">
@@ -343,16 +368,21 @@ const MyReferrals = () => {
           )}
 
           <div className="flex items-center justify-between gap-2 pt-1">
-            <span className="text-[11px] text-slate-400">Click for full details</span>
+            <span className="text-[11px] text-slate-400">
+              {isSuspended ? 'Details locked by admin' : 'Click for full details'}
+            </span>
             <div className="flex items-center gap-3">
               {['pending', 'rejected'].includes(r.status) && (
                 <button onClick={(e) => { e.stopPropagation(); reRefer(r._id); }} className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-600 hover:text-sky-700"><RefreshCw size={13} /> Re-refer to another lab</button>
               )}
-              <button onClick={(e) => { e.stopPropagation(); downloadRecordPdf(`/exports/consultant/lab-referrals/${r._id}`, `Lab_Record_${r.referralCode}.pdf`); }} className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-sky-700"><Download size={13} /> Download PDF</button>
+              {!isSuspended && (
+                <button onClick={(e) => { e.stopPropagation(); downloadRecordPdf(`/exports/consultant/lab-referrals/${r._id}`, `Lab_Record_${r.referralCode}.pdf`); }} className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-sky-700"><Download size={13} /> Download PDF</button>
+              )}
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
 
       {detailId && <LabReferralDetailModal referralId={detailId} onClose={() => setDetailId(null)} />}
     </div>

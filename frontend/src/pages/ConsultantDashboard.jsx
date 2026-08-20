@@ -10,45 +10,27 @@ const ConsultantDashboard = () => {
   const [stats, setStats] = useState([
     { name: 'Total Referrals', value: '0', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color: 'blue' },
     { name: 'Accepted', value: '0', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', color: 'green' },
-    { name: 'Earnings (PKR)', value: '0', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z', color: 'indigo' },
   ]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      // Fetch referrals and earnings independently so a failure in one
-      // never blanks out the other's stat (e.g. the Accepted count).
-      const [refRes, earnRes] = await Promise.allSettled([
-        api.get('/referrals/mine'),
-        api.get('/referrals/earnings'),
-      ]);
-
-      let total = 0;
-      let accepted = 0;
-      if (refRes.status === 'fulfilled' && refRes.value.data.success) {
-        const data = refRes.value.data.data;
-        setReferrals(data);
-        total = data.length;
-        // Only referrals currently in the "accepted" status for this consultant.
-        accepted = data.filter(r => r.status === 'accepted').length;
-      } else {
-        console.error('Failed to fetch referrals:', refRes.reason);
+      try {
+        const refRes = await api.get('/referrals/mine');
+        if (refRes.data.success) {
+          const data = refRes.data.data;
+          setReferrals(data);
+          const total = data.length;
+          const accepted = data.filter((r) => r.status === 'accepted').length;
+          setStats((prev) => [
+            { ...prev[0], value: total.toString() },
+            { ...prev[1], value: accepted.toString() },
+          ]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch referrals:', err);
+      } finally {
+        setLoading(false);
       }
-
-      let earningsDisplay = '0 PKR';
-      if (earnRes.status === 'fulfilled' && earnRes.value.data.success) {
-        const paisa = earnRes.value.data.data.totalEarningsPaisa || 0;
-        earningsDisplay = (paisa / 100).toLocaleString() + ' PKR';
-      } else if (earnRes.status === 'rejected') {
-        console.error('Failed to fetch earnings:', earnRes.reason);
-      }
-
-      setStats(prev => [
-        { ...prev[0], value: total.toString() },
-        { ...prev[1], value: accepted.toString() },
-        { ...prev[2], value: earningsDisplay },
-      ]);
-
-      setLoading(false);
     };
 
     fetchDashboardData();
@@ -74,7 +56,7 @@ const ConsultantDashboard = () => {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {stats.map((stat) => (
           <div key={stat.name} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
             <div className={`p-3 rounded-xl bg-${stat.color}-50 text-${stat.color}-600`}>
