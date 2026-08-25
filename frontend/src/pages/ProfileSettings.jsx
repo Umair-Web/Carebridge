@@ -39,13 +39,24 @@ const ProfileSettings = () => {
       return;
     }
     const updatedDepts = [...currentDepts, trimmed];
-    
+    const inactiveDepartments = (data.profile.inactiveDepartments || []).filter((d) =>
+      updatedDepts.includes(d)
+    );
+
     try {
-      const res = await api.patch('/hospitals/departments', { departments: updatedDepts });
+      const res = await api.patch('/hospitals/departments', {
+        departments: updatedDepts,
+        inactiveDepartments,
+      });
       if (res.data.success) {
-        setData(prev => ({
+        const payload = res.data.data;
+        setData((prev) => ({
           ...prev,
-          profile: { ...prev.profile, departments: res.data.data }
+          profile: {
+            ...prev.profile,
+            departments: payload.departments || payload,
+            inactiveDepartments: payload.inactiveDepartments || [],
+          },
         }));
         setNewDeptInput('');
         toast.success('Department added successfully');
@@ -57,14 +68,23 @@ const ProfileSettings = () => {
 
   const handleRemoveDepartment = async (dept) => {
     const currentDepts = data.profile.departments || [];
-    const updatedDepts = currentDepts.filter(d => d !== dept);
-    
+    const updatedDepts = currentDepts.filter((d) => d !== dept);
+    const inactiveDepartments = (data.profile.inactiveDepartments || []).filter((d) => d !== dept);
+
     try {
-      const res = await api.patch('/hospitals/departments', { departments: updatedDepts });
+      const res = await api.patch('/hospitals/departments', {
+        departments: updatedDepts,
+        inactiveDepartments,
+      });
       if (res.data.success) {
-        setData(prev => ({
+        const payload = res.data.data;
+        setData((prev) => ({
           ...prev,
-          profile: { ...prev.profile, departments: res.data.data }
+          profile: {
+            ...prev.profile,
+            departments: payload.departments || payload,
+            inactiveDepartments: payload.inactiveDepartments || [],
+          },
         }));
         toast.success('Department removed successfully');
       }

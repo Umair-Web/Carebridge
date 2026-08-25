@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import api from '../utils/api';
 import AgeInput from '../components/AgeInput';
 import { ageFromDob } from '../utils/dob';
+import { getActiveDepartments } from '../utils/hospitalDepartments';
 
 const SmartIntakeForm = () => {
   const [step, setStep] = useState(1);
@@ -156,10 +157,11 @@ const SmartIntakeForm = () => {
         setDetectedDept(res.data.detectedDept);
         const deptDefaults = {};
         list.forEach((h) => {
+          const activeDepts = getActiveDepartments(h);
           const defaultDept =
-            h.departments?.includes(res.data.detectedDept)
+            activeDepts.includes(res.data.detectedDept)
               ? res.data.detectedDept
-              : h.departments?.[0] || res.data.detectedDept || '';
+              : activeDepts[0] || '';
           if (defaultDept) deptDefaults[h.hospitalId] = defaultDept;
         });
         setSelectedDepartments((prev) => ({ ...deptDefaults, ...prev }));
@@ -525,12 +527,9 @@ const SmartIntakeForm = () => {
                             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-sm font-medium"
                           >
                             <option value="">-- Select Department --</option>
-                            {hospital.departments?.map(dept => (
+                            {getActiveDepartments(hospital).map((dept) => (
                               <option key={dept} value={dept}>{dept}</option>
                             ))}
-                            {!hospital.departments?.includes(detectedDept) && detectedDept && (
-                              <option value={detectedDept}>{detectedDept}</option>
-                            )}
                           </select>
                         </div>
 

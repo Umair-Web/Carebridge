@@ -59,8 +59,9 @@ const AdminHospitals = () => {
   const savePlatformCharge = async () => {
     try {
       setActionId(selected._id);
+      // UI is fixed-only; still send deductionPercentage so backend percentage logic remains intact.
       await api.post(`/admin/hospitals/${selected._id}/deduction`, {
-        platformChargeType: platformForm.platformChargeType,
+        platformChargeType: 'fixed',
         deductionPercentage: Number(platformForm.deductionPercentage) || 0,
         fixedPlatformChargeRupees: Number(platformForm.fixedPlatformChargeRupees) || 0,
       });
@@ -69,11 +70,12 @@ const AdminHospitals = () => {
         ...prev,
         profile: {
           ...prev.profile,
-          platformChargeType: platformForm.platformChargeType,
+          platformChargeType: 'fixed',
           deductionPercentage: Number(platformForm.deductionPercentage) || 0,
           fixedPlatformChargePaisa: Math.round((Number(platformForm.fixedPlatformChargeRupees) || 0) * 100),
         },
       }));
+      setPlatformForm((f) => ({ ...f, platformChargeType: 'fixed' }));
       await load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to update platform charge');
@@ -124,11 +126,12 @@ const AdminHospitals = () => {
     const d = ovDraft[consultantId] || { type: 'percentage', pct: 0, rupees: 0 };
     setOvSavingId(consultantId);
     try {
+      // UI is fixed-only; percentage fields still sent as 0 so backend logic stays intact.
       await api.post(`/admin/hospitals/${selected._id}/consultant-overrides`, {
         consultantId,
-        platformChargeType: d.type,
-        platformChargePercentage: d.type === 'percentage' ? Number(d.pct) || 0 : 0,
-        fixedPlatformChargeRupees: d.type === 'fixed' ? Number(d.rupees) || 0 : 0,
+        platformChargeType: 'fixed',
+        platformChargePercentage: 0, // d.type === 'percentage' ? Number(d.pct) || 0 : 0,
+        fixedPlatformChargeRupees: Number(d.rupees) || 0,
       });
       toast.success('Special platform fee saved');
       await loadOverrides(selected._id, profileUnlockToken);
@@ -748,12 +751,13 @@ const AdminHospitals = () => {
                     <div>
                       <p className="text-xs font-bold text-slate-800">What this hospital pays the platform</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        Choose <span className="font-semibold">one</span> type — a percentage of each bill, or a fixed price per
-                        referral. It applies to every patient at this hospital. The hospital's weekly total is this platform charge
-                        <span className="font-semibold"> plus</span> each consultant's commission.
+                        Fixed price per referral. It applies to every patient at this hospital. The hospital's weekly total is this
+                        platform charge <span className="font-semibold">plus</span> each consultant's commission.
+                        {/* Choose one type — a percentage of each bill, or a fixed price per referral. */}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
+                      {/* Percentage option hidden — fixed only
                       <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer">
                         <input type="radio" checked={platformForm.platformChargeType === 'percentage'} onChange={() => setPlatformForm((f) => ({ ...f, platformChargeType: 'percentage' }))} />
                         Percentage
@@ -762,7 +766,10 @@ const AdminHospitals = () => {
                         <input type="radio" checked={platformForm.platformChargeType === 'fixed'} onChange={() => setPlatformForm((f) => ({ ...f, platformChargeType: 'fixed' }))} />
                         Fixed per referral
                       </label>
+                      */}
+                      <span className="text-xs font-bold text-slate-600">Fixed per referral</span>
                       <div className="ml-auto flex items-center gap-1.5">
+                        {/* Percentage input hidden
                         {platformForm.platformChargeType === 'percentage' ? (
                           <>
                             <input
@@ -774,17 +781,18 @@ const AdminHospitals = () => {
                             <span className="text-xs font-bold text-slate-400">% of bill</span>
                           </>
                         ) : (
+                        */}
                           <>
                             <span className="text-xs font-bold text-slate-400">Rs</span>
                             <input
                               type="number" min="0"
                               value={platformForm.fixedPlatformChargeRupees}
-                              onChange={(e) => setPlatformForm((f) => ({ ...f, fixedPlatformChargeRupees: Math.max(0, Number(e.target.value) || 0) }))}
+                              onChange={(e) => setPlatformForm((f) => ({ ...f, platformChargeType: 'fixed', fixedPlatformChargeRupees: Math.max(0, Number(e.target.value) || 0) }))}
                               className="w-24 px-2 py-1.5 text-center text-sm font-bold text-slate-800 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
                             />
                             <span className="text-[10px] font-medium text-slate-400">/ referral</span>
                           </>
-                        )}
+                        {/* )} */}
                       </div>
                     </div>
                     <div className="flex justify-end">
@@ -805,9 +813,10 @@ const AdminHospitals = () => {
                     🎯 Special Platform Fee for Specific Consultants
                   </div>
                   <p className="text-[11px] text-slate-500 mb-3">
-                    Optionally charge <span className="font-semibold">certain consultants</span> a different platform fee for their
-                    referrals to this hospital. The doctor's commission never changes — only the platform fee (and so the hospital's
-                    total) differs. Consultants without a special fee keep the hospital default above. Applies to new referrals only.
+                    Optionally charge <span className="font-semibold">certain consultants</span> a different fixed platform fee for
+                    their referrals to this hospital. The doctor's commission never changes — only the platform fee (and so the
+                    hospital's total) differs. Consultants without a special fee keep the hospital default above. Applies to new
+                    referrals only.
                   </p>
 
                   <div className="relative mb-3">
@@ -855,6 +864,7 @@ const AdminHospitals = () => {
                               </div>
 
                               <div className="flex items-center gap-2 flex-wrap">
+                                {/* Percentage option hidden — fixed only
                                 <label className="flex items-center gap-1 text-[11px] font-medium text-slate-600 cursor-pointer">
                                   <input type="radio" checked={d.type === 'percentage'} onChange={() => setDraft(c.consultantId, { type: 'percentage' })} />
                                   %
@@ -874,17 +884,19 @@ const AdminHospitals = () => {
                                     <span className="text-[10px] font-bold text-slate-400">% of bill</span>
                                   </div>
                                 ) : (
+                                */}
                                   <div className="flex items-center gap-1">
+                                    <span className="text-[10px] font-bold text-slate-600 mr-1">Fixed</span>
                                     <span className="text-[10px] font-bold text-slate-400">Rs</span>
                                     <input
                                       type="number" min="0"
                                       value={d.rupees}
-                                      onChange={(e) => setDraft(c.consultantId, { rupees: Math.max(0, Number(e.target.value) || 0) })}
+                                      onChange={(e) => setDraft(c.consultantId, { type: 'fixed', rupees: Math.max(0, Number(e.target.value) || 0) })}
                                       className="w-20 px-2 py-1 text-center text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                                     />
                                     <span className="text-[10px] font-medium text-slate-400">/ referral</span>
                                   </div>
-                                )}
+                                {/* )} */}
                                 <div className="ml-auto flex items-center gap-1.5">
                                   {hasOverride && (
                                     <button

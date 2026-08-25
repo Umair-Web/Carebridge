@@ -352,24 +352,28 @@ const HospitalSettlements = () => {
                 </div>
               </div>
 
-              {/* Aggregated Totals Preview Card */}
+              {/* Aggregated Totals Preview Card — platform charge only (doctor commission hidden) */}
               {selectedAdmissionIds.length > 0 && (
                 <div className="bg-slate-900 text-white rounded-xl p-5 space-y-3 shadow-md border border-slate-850">
+                  {/* Gross + doctor commission hidden from hospital view
                   <div className="flex justify-between items-center border-b border-white/10 pb-3">
                     <span className="text-xs text-slate-400 font-bold">Aggregated Gross Billed</span>
                     <span className="text-lg font-black tabular-nums">{formatPkr(selectedGrossPaisa)}</span>
                   </div>
+                  */}
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400">Platform Charge</span>
                     <span className="font-bold text-slate-200 tabular-nums">{formatPkr(selectedPlatformPaisa)}</span>
                   </div>
+                  {/*
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400">Doctor Commission</span>
                     <span className="font-bold text-slate-200 tabular-nums">{formatPkr(selectedCommissionPaisa)}</span>
                   </div>
+                  */}
                   <div className="flex justify-between items-center border-t border-dashed border-white/10 pt-3">
                     <span className="text-xs text-slate-350 font-black">Total Due to Platform (You Pay Manually)</span>
-                    <span className="text-xl font-extrabold text-teal-400 tabular-nums">{formatPkr(calculatedPlatformCutPaisa)}</span>
+                    <span className="text-xl font-extrabold text-teal-400 tabular-nums">{formatPkr(selectedPlatformPaisa)}</span>
                   </div>
                 </div>
               )}
@@ -522,18 +526,20 @@ const HospitalSettlements = () => {
                 </div>
 
                 {/* Grid details */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
                   <div>
                     <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block mb-0.5">Platform Charge</span>
                     <span className="font-bold text-slate-700 dark:text-slate-300 tabular-nums">{formatPkr(settlement.platformChargeTotalPaisa ?? settlement.calculatedPlatformCutPaisa)}</span>
                   </div>
+                  {/* Doctor commission hidden from hospital view
                   <div>
                     <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block mb-0.5">Doctor Commission</span>
                     <span className="font-bold text-slate-700 dark:text-slate-300 tabular-nums">{formatPkr(settlement.doctorCommissionTotalPaisa ?? 0)}</span>
                   </div>
+                  */}
                   <div>
                     <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block mb-0.5">Total Due</span>
-                    <span className="font-black text-teal-600 dark:text-teal-400 tabular-nums">{formatPkr(settlement.facilityTotalPayablePaisa ?? settlement.calculatedPlatformCutPaisa)}</span>
+                    <span className="font-black text-teal-600 dark:text-teal-400 tabular-nums">{formatPkr(settlement.platformChargeTotalPaisa ?? settlement.calculatedPlatformCutPaisa)}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block mb-0.5">Cases Included</span>
@@ -562,7 +568,7 @@ const HospitalSettlements = () => {
                         Transfer Platform Fee manually & attach proof receipt
                       </p>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
-                        Please pay {formatPkr(settlement.calculatedPlatformCutPaisa)} to our bank details above, then upload the transaction screenshot receipt.
+                        Please pay {formatPkr(settlement.platformChargeTotalPaisa ?? settlement.calculatedPlatformCutPaisa)} to our bank details above, then upload the transaction screenshot receipt.
                       </p>
                     </div>
                     <div className="shrink-0">

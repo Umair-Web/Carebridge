@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, Plus, X, RefreshCw, Activity } from 'lucide-react';
+import { Building2, Plus, X, Activity, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../utils/api';
 import Loader from '../components/Loader';
@@ -9,7 +9,6 @@ const HospitalDepartments = () => {
   const queryClient = useQueryClient();
   const [newDept, setNewDept] = useState('');
 
-  // Fetch hospital profile to get departments
   const { data: hospital, isLoading, error } = useQuery({
     queryKey: ['hospital-profile'],
     queryFn: async () => {
@@ -19,8 +18,8 @@ const HospitalDepartments = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (departments) => {
-      const res = await api.patch('/hospitals/departments', { departments });
+    mutationFn: async ({ departments, inactiveDepartments }) => {
+      const res = await api.patch('/hospitals/departments', { departments, inactiveDepartments });
       return res.data.data;
     },
     onSuccess: () => {
@@ -32,25 +31,43 @@ const HospitalDepartments = () => {
     }
   });
 
+  const departments = hospital?.departments || [];
+  const inactiveDepartments = hospital?.inactiveDepartments || [];
+  const inactiveSet = new Set(inactiveDepartments);
+
+  const persist = (nextDepartments, nextInactive) => {
+    updateMutation.mutate({
+      departments: nextDepartments,
+      inactiveDepartments: nextInactive.filter((d) => nextDepartments.includes(d)),
+    });
+  };
+
   const handleAdd = (e) => {
     e.preventDefault();
     if (!newDept.trim()) return;
-    
-    const currentDepts = hospital?.departments || [];
-    if (currentDepts.includes(newDept.trim())) {
+
+    if (departments.includes(newDept.trim())) {
       toast.error('Department already exists');
       return;
     }
-    
-    const updated = [...currentDepts, newDept.trim()];
-    updateMutation.mutate(updated);
+
+    persist([...departments, newDept.trim()], inactiveDepartments);
     setNewDept('');
   };
 
   const handleRemove = (dept) => {
-    const currentDepts = hospital?.departments || [];
-    const updated = currentDepts.filter(d => d !== dept);
-    updateMutation.mutate(updated);
+    persist(
+      departments.filter((d) => d !== dept),
+      inactiveDepartments.filter((d) => d !== dept)
+    );
+  };
+
+  const handleToggleActive = (dept) => {
+    const isInactive = inactiveSet.has(dept);
+    const nextInactive = isInactive
+      ? inactiveDepartments.filter((d) => d !== dept)
+      : [...inactiveDepartments, dept];
+    persist(departments, nextInactive);
   };
 
   if (isLoading) return <Loader message="Fetching departments..." />;
@@ -59,7 +76,7 @@ const HospitalDepartments = () => {
     return <div className="text-red-500 text-center py-10">Failed to load hospital profile.</div>;
   }
 
-  const departments = hospital?.departments || [];
+  const activeCount = departments.filter((d) => !inactiveSet.has(d)).length;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-in fade-in duration-500">
@@ -69,7 +86,9 @@ const HospitalDepartments = () => {
         </div>
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Manage Departments</h1>
-          <p className="text-slate-500 mt-1 text-sm">Configure the medical specialties and departments available at your facility.</p>
+          <p className="text-slate-500 mt-1 text-sm">
+            Configure specialties and turn departments off when beds or capacity are unavailable. Only active departments appear in consultant referrals.
+          </p>
         </div>
       </div>
 
@@ -83,7 +102,7 @@ const HospitalDepartments = () => {
             placeholder="e.g. Cardiology, Pediatrics..."
             className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
           />
-          <button 
+          <button
             type="submit"
             disabled={updateMutation.isLoading || !newDept.trim()}
             className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
@@ -95,27 +114,61 @@ const HospitalDepartments = () => {
         <div className="mt-8">
           <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
             <Activity size={18} className="text-blue-500" />
-            Active Departments ({departments.length})
+            Departments ({activeCount} active / {departments.length} total)
           </h2>
-          
+
           {departments.length === 0 ? (
             <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-xl text-slate-500">
               No departments configured yet. Add your first department above to start receiving relevant referrals.
             </div>
           ) : (
             <div className="flex flex-wrap gap-3">
-              {departments.map((dept, idx) => (
-                <div key={idx} className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg group hover:border-blue-300 hover:bg-blue-50 transition-colors">
-                  <span className="font-semibold text-slate-700 group-hover:text-blue-700">{dept}</span>
-                  <button 
-                    onClick={() => handleRemove(dept)}
-                    className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors ml-2"
-                    title="Remove Department"
+              {departments.map((dept) => {
+                const isActive = !inactiveSet.has(dept);
+                return (
+                  <div
+                    key={dept}
+                    className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${
+                      isActive
+                        ? 'bg-slate-50 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                        : 'bg-slate-100 border-slate-200 opacity-70'
+                    }`}
                   >
-                    <X size={14} />
-                  </button>
-                </div>
-              ))}
+                    <span className={`font-semibold ${isActive ? 'text-slate-700' : 'text-slate-500 line-through'}`}>
+                      {dept}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                        isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                      }`}
+                    >
+                      {isActive ? 'Active' : 'Off'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleActive(dept)}
+                      disabled={updateMutation.isLoading}
+                      className={`p-1 rounded-full transition-colors ml-1 ${
+                        isActive
+                          ? 'text-emerald-600 hover:bg-emerald-50'
+                          : 'text-amber-600 hover:bg-amber-50'
+                      }`}
+                      title={isActive ? 'Deactivate (hide from referrals)' : 'Activate (show in referrals)'}
+                    >
+                      <Power size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(dept)}
+                      disabled={updateMutation.isLoading}
+                      className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                      title="Remove Department"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

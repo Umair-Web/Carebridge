@@ -673,7 +673,7 @@ const AdminConsultants = () => {
                     </div>
 
                     {/* 4. Wallet Section */}
-                    <div className="space-y-3">
+                    {/* <div className="space-y-3">
                       <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
                         <Wallet size={14} className="text-indigo-500" /> Financial Wallet Center
                       </h4>
@@ -702,16 +702,16 @@ const AdminConsultants = () => {
                           <span className="font-bold text-indigo-400 uppercase">{profileData.profile.wallet.commissionStructure}</span>
                         </div>
                       </div>
-                    </div>
+                    </div> */}
 
                     {/* Commission & Platform Charges Configuration (v2 per-doctor) */}
-                    {commForm && (
+                    {/* {commForm && (
                     <div className="space-y-3 pt-4 border-t border-slate-100">
                       <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
                         <Shield size={14} className="text-indigo-500" /> Commission & Platform Charges
                       </h4>
 
-                      {/* Model toggle */}
+                     
                       <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-4 space-y-3">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
@@ -792,7 +792,7 @@ const AdminConsultants = () => {
                         </div>
                       </div>
                     </div>
-                    )}
+                    )} */}
                   </div>
                 ) : (
                   <div className="space-y-6">

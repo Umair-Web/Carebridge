@@ -38,7 +38,7 @@ const HospitalDashboard = () => {
     { label: 'Total referrals', value: stats.totalReferrals, accent: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Pending inbox', value: stats.pendingReferrals, accent: 'text-amber-600', bg: 'bg-amber-50' },
     { label: 'Admitted', value: stats.admittedReferrals ?? 0, accent: 'text-violet-600', bg: 'bg-violet-50' },
-    { label: 'Billed revenue', value: formatPkr(stats.revenuePaisa || 0), accent: 'text-emerald-600', bg: 'bg-emerald-50', isText: true },
+    // { label: 'Billed revenue', value: formatPkr(stats.revenuePaisa || 0), accent: 'text-emerald-600', bg: 'bg-emerald-50', isText: true },
   ];
 
   return (
