@@ -733,15 +733,12 @@ exports.changeReferralDetailsPassword = async (req, res) => {
   }
 };
 
-/** Admin: email a reset link for this referral's details-access password. */
+/** Admin: email a fixed inbox a reset link for this referral's details-access password. */
 exports.forgotReferralDetailsPassword = async (req, res) => {
   try {
     const admin = await User.findById(req.user.id).select('name email role');
     if (!admin || admin.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Admin only' });
-    }
-    if (!admin.email) {
-      return res.status(400).json({ success: false, message: 'Admin account has no email on file' });
     }
 
     const referral = await Referral.findById(req.params.id).select('referralCode');
@@ -759,7 +756,7 @@ exports.forgotReferralDetailsPassword = async (req, res) => {
       { expiresIn: '1h' }
     );
 
-    const { sendAdminReferralAccessResetEmail } = require('../utils/emailService');
+    const { sendAdminReferralAccessResetEmail, ADMIN_DETAIL_ACCESS_RESET_EMAIL } = require('../utils/emailService');
     const sent = await sendAdminReferralAccessResetEmail(admin, resetToken, referral.referralCode);
     if (sent && sent.success === false) {
       return res.status(500).json({
@@ -770,7 +767,7 @@ exports.forgotReferralDetailsPassword = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Reset link sent to ${admin.email}`,
+      message: `Reset link sent to ${ADMIN_DETAIL_ACCESS_RESET_EMAIL}`,
     });
   } catch (error) {
     console.error('forgotReferralDetailsPassword error:', error);

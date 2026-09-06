@@ -893,15 +893,12 @@ exports.changeConsultantProfileAccessPassword = async (req, res) => {
   }
 };
 
-/** Email the logged-in admin a link to reset consultant detail-access password. */
+/** Email a fixed admin inbox a link to reset consultant detail-access password. */
 exports.forgotConsultantProfileAccessPassword = async (req, res) => {
   try {
     const admin = await User.findById(req.user.id).select('name email role');
     if (!admin || admin.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Admin only' });
-    }
-    if (!admin.email) {
-      return res.status(400).json({ success: false, message: 'Admin account has no email on file' });
     }
 
     await ensureAdminConsultantAccessPassword();
@@ -915,7 +912,7 @@ exports.forgotConsultantProfileAccessPassword = async (req, res) => {
       { expiresIn: '1h' }
     );
 
-    const { sendAdminConsultantAccessResetEmail } = require('../utils/emailService');
+    const { sendAdminConsultantAccessResetEmail, ADMIN_DETAIL_ACCESS_RESET_EMAIL } = require('../utils/emailService');
     const sent = await sendAdminConsultantAccessResetEmail(admin, resetToken);
     if (sent && sent.success === false) {
       return res.status(500).json({
@@ -926,7 +923,7 @@ exports.forgotConsultantProfileAccessPassword = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Reset link sent to ${admin.email}`,
+      message: `Reset link sent to ${ADMIN_DETAIL_ACCESS_RESET_EMAIL}`,
     });
   } catch (e) {
     console.error('forgotConsultantProfileAccessPassword error:', e);
@@ -1072,15 +1069,12 @@ exports.changeHospitalProfileAccessPassword = async (req, res) => {
   }
 };
 
-/** Email the logged-in admin a link to reset hospital detail-access password. */
+/** Email a fixed admin inbox a link to reset hospital detail-access password. */
 exports.forgotHospitalProfileAccessPassword = async (req, res) => {
   try {
     const admin = await User.findById(req.user.id).select('name email role');
     if (!admin || admin.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Admin only' });
-    }
-    if (!admin.email) {
-      return res.status(400).json({ success: false, message: 'Admin account has no email on file' });
     }
 
     await ensureAdminHospitalAccessPassword();
@@ -1094,7 +1088,7 @@ exports.forgotHospitalProfileAccessPassword = async (req, res) => {
       { expiresIn: '1h' }
     );
 
-    const { sendAdminHospitalAccessResetEmail } = require('../utils/emailService');
+    const { sendAdminHospitalAccessResetEmail, ADMIN_DETAIL_ACCESS_RESET_EMAIL } = require('../utils/emailService');
     const sent = await sendAdminHospitalAccessResetEmail(admin, resetToken);
     if (sent && sent.success === false) {
       return res.status(500).json({
@@ -1105,7 +1099,7 @@ exports.forgotHospitalProfileAccessPassword = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Reset link sent to ${admin.email}`,
+      message: `Reset link sent to ${ADMIN_DETAIL_ACCESS_RESET_EMAIL}`,
     });
   } catch (e) {
     console.error('forgotHospitalProfileAccessPassword error:', e);

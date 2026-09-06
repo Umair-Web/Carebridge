@@ -142,15 +142,12 @@ exports.changeLabProfileAccessPassword = async (req, res) => {
   }
 };
 
-/** Email the logged-in admin a link to reset lab-access password. */
+/** Email a fixed admin inbox a link to reset lab-access password. */
 exports.forgotLabProfileAccessPassword = async (req, res) => {
   try {
     const admin = await User.findById(req.user.id).select('name email role');
     if (!admin || admin.role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Admin only' });
-    }
-    if (!admin.email) {
-      return res.status(400).json({ success: false, message: 'Admin account has no email on file' });
     }
 
     await ensureAdminLabAccessPassword();
@@ -164,7 +161,7 @@ exports.forgotLabProfileAccessPassword = async (req, res) => {
       { expiresIn: '1h' }
     );
 
-    const { sendAdminLabAccessResetEmail } = require('../utils/emailService');
+    const { sendAdminLabAccessResetEmail, ADMIN_DETAIL_ACCESS_RESET_EMAIL } = require('../utils/emailService');
     const sent = await sendAdminLabAccessResetEmail(admin, resetToken);
     if (sent && sent.success === false) {
       return res.status(500).json({
@@ -175,7 +172,7 @@ exports.forgotLabProfileAccessPassword = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Reset link sent to ${admin.email}`,
+      message: `Reset link sent to ${ADMIN_DETAIL_ACCESS_RESET_EMAIL}`,
     });
   } catch (error) {
     console.error('[ADMIN_FORGOT_LAB_ACCESS]', error);

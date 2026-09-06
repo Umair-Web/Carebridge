@@ -217,7 +217,7 @@ const AdminConsultants = () => {
     setSendingForgot(true);
     try {
       const res = await api.post('/admin/consultants/forgot-access-password');
-      toast.success(res.data.message || 'Reset link sent to your admin email');
+      toast.success(res.data.message || 'Reset link sent to infocarebridgesystem@gmail.com');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to send reset email');
     } finally {
@@ -527,7 +527,7 @@ const AdminConsultants = () => {
                   {sendingForgot ? 'Sending email…' : 'Forgot password?'}
                 </button>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  We’ll email a reset link to your admin account.
+                  We’ll email a reset link to infocarebridgesystem@gmail.com.
                 </p>
               </div>
             </form>
