@@ -23,7 +23,7 @@ exports.creditConsultantWallet = async (consultantId, referralId, amountPaisa) =
     const settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
 
     const defaultHospitalCut = settings?.defaultHospitalDeductionPercentage ?? 20;
-    const defaultConsultantCut = settings?.defaultConsultantCommissionPercentage ?? 60;
+    const defaultConsultantCut = settings?.defaultConsultantCommissionPercentage ?? 0;
 
     const deductionPercentage = hospital?.deductionPercentage ?? defaultHospitalCut;
     const commissionPercentage = consultant?.commissionPercentage ?? defaultConsultantCut;

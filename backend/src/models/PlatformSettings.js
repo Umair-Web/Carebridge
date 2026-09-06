@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const PlatformSettingsSchema = new mongoose.Schema(
   {
     defaultHospitalDeductionPercentage: { type: Number, default: 20 },
-    defaultConsultantCommissionPercentage: { type: Number, default: 60 },
+    defaultConsultantCommissionPercentage: { type: Number, default: 0 },
     /** Laboratory module defaults */
     defaultLabDeductionPercentage: { type: Number, default: 20 },
     defaultLabCommissionPercentage: { type: Number, default: 60 },
@@ -21,6 +21,21 @@ const PlatformSettingsSchema = new mongoose.Schema(
     primaryColor: { type: String, default: '#4f46e5' },
     accentColor: { type: String, default: '#06b6d4' },
     faviconUrl: { type: String },
+    /**
+     * Admin-only password to unlock laboratory detail side panels.
+     * Not the laboratory portal login. Default plaintext on first use: 123456.
+     */
+    adminLabProfileAccessPasswordHash: { type: String },
+    /**
+     * Admin-only password to unlock consultant detail side panels.
+     * Not the consultant portal login. Default plaintext on first use: 123456.
+     */
+    adminConsultantProfileAccessPasswordHash: { type: String },
+    /**
+     * Admin-only password to unlock hospital detail side panels.
+     * Not the hospital portal login. Default plaintext on first use: 123456.
+     */
+    adminHospitalProfileAccessPasswordHash: { type: String },
   },
   { timestamps: true }
 );

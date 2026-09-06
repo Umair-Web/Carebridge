@@ -34,7 +34,7 @@ const ConsultantSchema = new mongoose.Schema(
       }
     ],
     isVerified: { type: Boolean, default: false },
-    commissionPercentage: { type: Number, default: 60 }, // consultant commission split percentage (e.g. 60%)
+    commissionPercentage: { type: Number, default: 0 }, // consultant commission split percentage (legacy nested)
 
     /**
      * Commission model selector (COMMISSION_SYSTEM_V2_PER_DOCTOR.md).

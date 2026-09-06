@@ -64,6 +64,11 @@ const HospitalSchema = new mongoose.Schema(
     deductionPercentage: { type: Number, default: 20 }, // platform charge % (also legacy nested cut)
     platformChargeType: { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
     fixedPlatformChargePaisa: { type: Number, default: 0, min: 0 }, // flat platform charge per patient/referral
+    /**
+     * Password for hospital staff to unlock doctor profiles (view/edit/delete).
+     * Separate from the hospital portal login. Default plaintext on first use: 123456.
+     */
+    doctorProfileAccessPasswordHash: { type: String },
     /** Individual JazzCash Merchant Credentials (SRS §12.3) */
     paymentGatewayCredentials: {
       merchantId: { type: String, trim: true },

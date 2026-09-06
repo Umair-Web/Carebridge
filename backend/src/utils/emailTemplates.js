@@ -642,6 +642,118 @@ const resetPasswordEmailText = (user, resetUrl) =>
     cta: { href: resetUrl },
   });
 
+const adminLabAccessResetEmailHtml = (user, resetUrl) =>
+  buildActionEmail({
+    preheader: `Reset your CareBridge admin laboratory profile access password.`,
+    category: 'Lab access reset',
+    title: 'Reset laboratory access password',
+    name: user.name,
+    paragraphs: [
+      'We received a request to reset the <strong>admin lab-access password</strong> used to open laboratory profiles in the admin portal.',
+      'This is <strong>not</strong> your admin login password. Use the button below to choose a new access password.',
+      'This link expires in <strong>1 hour</strong> for your security.',
+    ],
+    cta: { href: resetUrl, label: 'Set new access password' },
+    linkUrl: resetUrl,
+    footnote:
+      '<strong style="color:#475569;">Did not request this?</strong> Ignore this email and the lab-access password will remain unchanged.',
+  });
+
+const adminLabAccessResetEmailText = (user, resetUrl) =>
+  buildActionEmailText({
+    title: 'Reset laboratory access password',
+    name: user.name,
+    paragraphs: [
+      'Reset the admin lab-access password (not your login password). Link expires in 1 hour:',
+      resetUrl,
+    ],
+    cta: { href: resetUrl },
+  });
+
+const adminReferralAccessResetEmailHtml = (user, resetUrl, referralCode) =>
+  buildActionEmail({
+    preheader: `Reset referral details access password for ${referralCode || 'a referral'}.`,
+    category: 'Referral access reset',
+    title: 'Reset referral access password',
+    name: user.name,
+    paragraphs: [
+      `We received a request to reset the <strong>referral details access password</strong>${referralCode ? ` for <strong>${escapeHtml(referralCode)}</strong>` : ''}.`,
+      'This password unlocks patient referral details in the admin portal. Use the button below to choose a new password.',
+      'This link expires in <strong>1 hour</strong> for your security.',
+    ],
+    cta: { href: resetUrl, label: 'Set new access password' },
+    linkUrl: resetUrl,
+    footnote:
+      '<strong style="color:#475569;">Did not request this?</strong> Ignore this email and the password will remain unchanged.',
+  });
+
+const adminReferralAccessResetEmailText = (user, resetUrl, referralCode) =>
+  buildActionEmailText({
+    title: 'Reset referral access password',
+    name: user.name,
+    paragraphs: [
+      `Reset the referral details access password${referralCode ? ` for ${referralCode}` : ''}. Link expires in 1 hour:`,
+      resetUrl,
+    ],
+    cta: { href: resetUrl },
+  });
+
+const adminConsultantAccessResetEmailHtml = (user, resetUrl) =>
+  buildActionEmail({
+    preheader: `Reset your CareBridge admin consultant profile access password.`,
+    category: 'Consultant access reset',
+    title: 'Reset consultant access password',
+    name: user.name,
+    paragraphs: [
+      'We received a request to reset the <strong>admin consultant detail-access password</strong> used to open consultant profiles in the admin portal.',
+      'This is <strong>not</strong> your admin login password, and it is not the consultant’s portal password. Use the button below to choose a new access password.',
+      'This link expires in <strong>1 hour</strong> for your security.',
+    ],
+    cta: { href: resetUrl, label: 'Set new access password' },
+    linkUrl: resetUrl,
+    footnote:
+      '<strong style="color:#475569;">Did not request this?</strong> Ignore this email and the consultant access password will remain unchanged.',
+  });
+
+const adminConsultantAccessResetEmailText = (user, resetUrl) =>
+  buildActionEmailText({
+    title: 'Reset consultant access password',
+    name: user.name,
+    paragraphs: [
+      'Reset the admin consultant detail-access password (not your login password). Link expires in 1 hour:',
+      resetUrl,
+    ],
+    cta: { href: resetUrl },
+  });
+
+const adminHospitalAccessResetEmailHtml = (user, resetUrl) =>
+  buildActionEmail({
+    preheader: `Reset your CareBridge admin hospital profile access password.`,
+    category: 'Hospital access reset',
+    title: 'Reset hospital access password',
+    name: user.name,
+    paragraphs: [
+      'We received a request to reset the <strong>admin hospital detail-access password</strong> used to open hospital profiles in the admin portal.',
+      'This is <strong>not</strong> your admin login password, and it is not the hospital’s portal password. Use the button below to choose a new access password.',
+      'This link expires in <strong>1 hour</strong> for your security.',
+    ],
+    cta: { href: resetUrl, label: 'Set new access password' },
+    linkUrl: resetUrl,
+    footnote:
+      '<strong style="color:#475569;">Did not request this?</strong> Ignore this email and the hospital access password will remain unchanged.',
+  });
+
+const adminHospitalAccessResetEmailText = (user, resetUrl) =>
+  buildActionEmailText({
+    title: 'Reset hospital access password',
+    name: user.name,
+    paragraphs: [
+      'Reset the admin hospital detail-access password (not your login password). Link expires in 1 hour:',
+      resetUrl,
+    ],
+    cta: { href: resetUrl },
+  });
+
 module.exports = {
   buildActionEmail,
   buildActionEmailText,
@@ -654,6 +766,14 @@ module.exports = {
   resetPasswordEmailHtml,
   verificationEmailText,
   resetPasswordEmailText,
+  adminLabAccessResetEmailHtml,
+  adminLabAccessResetEmailText,
+  adminReferralAccessResetEmailHtml,
+  adminReferralAccessResetEmailText,
+  adminConsultantAccessResetEmailHtml,
+  adminConsultantAccessResetEmailText,
+  adminHospitalAccessResetEmailHtml,
+  adminHospitalAccessResetEmailText,
   referralSubmittedConsultantEmail,
   referralReceivedHospitalEmail,
   referralReceivedDoctorEmail,

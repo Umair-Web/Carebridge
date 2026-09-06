@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
-  FlaskConical, CheckCircle2, Ban, Save, FileText, Upload, Receipt, Users, ClipboardList, Wallet, X, Eye, Download,
+  FlaskConical, CheckCircle2, Ban, Save, FileText, Upload, Receipt, Users, ClipboardList, Wallet, X, Eye, Download, Lock, Shield,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { formatPkr } from '../../utils/formatPkr';
@@ -26,15 +26,17 @@ const uploadFile = async (file) => {
   return res.data.url;
 };
 
-const inputClass = 'px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-sky-500 outline-none w-20';
 const fullInput = 'w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-sky-500 outline-none';
 
 // ── Full lab detail (profile edit + earnings + referrals) ───────────────────────
-const LabDetailModal = ({ labId, onClose, onSaved }) => {
+const LabDetailModal = ({ labId, unlockToken, onClose, onSaved }) => {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [referralDetailId, setReferralDetailId] = useState(null);
+  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
+  const [accessNewPassword, setAccessNewPassword] = useState('');
+  const [savingAccessPw, setSavingAccessPw] = useState(false);
 
   const { data: lab } = useQuery({ queryKey: ['admin-lab', labId], queryFn: async () => (await api.get(`/admin/labs/${labId}`)).data.data });
   const { data: referrals = [] } = useQuery({ queryKey: ['admin-lab-refs', labId], queryFn: async () => (await api.get('/admin/labs/referrals', { params: { laboratoryId: labId } })).data.data });
@@ -114,22 +116,80 @@ const LabDetailModal = ({ labId, onClose, onSaved }) => {
   };
 
   const summary = payoutsRes?.summary || {};
+  const labStatus = lab?.userId?.status;
+
+  const statusMutation = useMutation({
+    mutationFn: (status) => api.patch(`/admin/labs/${labId}/status`, { status }),
+    onSuccess: (_res, status) => {
+      toast.success(`Lab ${status === 'active' ? 'approved' : 'suspended'}`);
+      queryClient.invalidateQueries({ queryKey: ['admin-lab', labId] });
+      onSaved?.();
+    },
+    onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
+  });
+
+  const changeAccessPassword = async (e) => {
+    e.preventDefault();
+    if (!accessCurrentPassword || !accessNewPassword) {
+      return toast.error('Enter current and new access passwords');
+    }
+    if (accessNewPassword.length < 4) {
+      return toast.error('New password must be at least 4 characters');
+    }
+    setSavingAccessPw(true);
+    try {
+      await api.patch(
+        '/admin/labs/access-password',
+        { currentPassword: accessCurrentPassword, newPassword: accessNewPassword },
+        { headers: { 'X-Lab-Profile-Unlock': unlockToken } }
+      );
+      toast.success('Admin lab-access password updated');
+      setAccessCurrentPassword('');
+      setAccessNewPassword('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update access password');
+    } finally {
+      setSavingAccessPw(false);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={onClose} aria-label="Close" />
+      <aside className="relative h-full w-full max-w-xl bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-100 dark:border-slate-800 flex flex-col animate-in slide-in-from-right duration-300">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-sky-600">Laboratory profile</p>
             <h2 className="text-lg font-black text-slate-900 dark:text-slate-50">{lab?.labName || 'Laboratory'}</h2>
-            <p className="text-xs text-slate-500">{lab?.userId?.email} • {lab?.userId?.status}</p>
+            <p className="text-xs text-slate-500">{lab?.userId?.email} • {labStatus}</p>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><X size={18} /></button>
+          <button type="button" onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><X size={18} /></button>
         </div>
 
         {!lab || !form ? (
           <div className="p-10 text-center text-slate-400 text-sm">Loading…</div>
         ) : (
-          <div className="p-5 space-y-6">
+          <div className="flex-1 overflow-y-auto p-5 space-y-6">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => downloadPdf(`/exports/admin/laboratories/${labId}`, `Laboratory_${(lab.labName || 'file').replace(/\s+/g, '_')}.pdf`)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg"
+              >
+                <Download size={13} /> Download file
+              </button>
+              {labStatus !== 'active' && (
+                <button type="button" onClick={() => statusMutation.mutate('active')} disabled={statusMutation.isPending} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg disabled:opacity-60">
+                  <CheckCircle2 size={13} /> Approve
+                </button>
+              )}
+              {labStatus === 'active' && (
+                <button type="button" onClick={() => statusMutation.mutate('suspended')} disabled={statusMutation.isPending} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs rounded-lg disabled:opacity-60">
+                  <Ban size={13} /> Suspend
+                </button>
+              )}
+            </div>
+
             {/* Earnings summary */}
             <div className="grid grid-cols-3 gap-3">
               <div className="bg-slate-900 text-white rounded-xl p-4"><p className="text-[10px] text-slate-400 font-bold uppercase">Commission Total</p><p className="text-lg font-black text-sky-400 tabular-nums">{formatPkr(summary.totalPaisa || 0)}</p></div>
@@ -293,14 +353,42 @@ const LabDetailModal = ({ labId, onClose, onSaved }) => {
                 </div>
               )}
             </section>
+
+            <form onSubmit={changeAccessPassword} className="rounded-2xl border border-amber-100 bg-amber-50/40 dark:bg-amber-950/10 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-slate-50 font-bold text-sm">
+                <Shield size={16} className="text-amber-600" />
+                Change admin lab-access password
+              </div>
+              <p className="text-xs text-slate-500">
+                Password used to open laboratory profiles in admin (not the lab portal login). 
+              </p>
+              <input
+                type="password"
+                value={accessCurrentPassword}
+                onChange={(e) => setAccessCurrentPassword(e.target.value)}
+                placeholder="Current access password"
+                className={fullInput}
+              />
+              <input
+                type="password"
+                value={accessNewPassword}
+                onChange={(e) => setAccessNewPassword(e.target.value)}
+                placeholder="New access password"
+                className={fullInput}
+              />
+              <button type="submit" disabled={savingAccessPw} className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50">
+                Update access password
+              </button>
+            </form>
           </div>
         )}
-      </div>
+      </aside>
 
       {referralDetailId && (
         <LabReferralDetailModal
           referralId={referralDetailId}
           editable
+          unlockToken={unlockToken}
           onClose={() => setReferralDetailId(null)}
           onSaved={() => queryClient.invalidateQueries({ queryKey: ['admin-lab-refs', labId] })}
         />
@@ -313,47 +401,76 @@ const LabDetailModal = ({ labId, onClose, onSaved }) => {
 const LabsPanel = () => {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
-  const [edits, setEdits] = useState({});
   const [detailLabId, setDetailLabId] = useState(null);
+  const [unlockToken, setUnlockToken] = useState(null);
+
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [unlockTarget, setUnlockTarget] = useState(null);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [sendingForgot, setSendingForgot] = useState(false);
 
   const { data: labs = [], isLoading } = useQuery({
     queryKey: ['admin-labs', statusFilter],
     queryFn: async () => (await api.get('/admin/labs', { params: statusFilter ? { status: statusFilter } : {} })).data.data,
   });
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['admin-labs'] });
+  const openUnlock = (lab) => {
+    setUnlockTarget(lab);
+    setUnlockPassword('');
+    setUnlockOpen(true);
+  };
 
-  // A single mutation guards against double-clicks (button is disabled while the
-  // request is in flight) and always refetches authoritative server state on
-  // success — so the suspend/approve toggle is reliable and never races.
-  const statusMutation = useMutation({
-    mutationFn: ({ id, status }) => api.patch(`/admin/labs/${id}/status`, { status }),
-    onSuccess: (_res, { status }) => {
-      toast.success(`Lab ${status === 'active' ? 'approved' : 'suspended'}`);
-      refresh();
-    },
-    onError: (err) => toast.error(err.response?.data?.message || 'Failed'),
-  });
-  // Which lab id is currently being toggled (to disable only that row's buttons).
-  const togglingId = statusMutation.isPending ? statusMutation.variables?.id : null;
-
-  const saveEconomics = async (lab) => {
-    const e = edits[lab._id] || {};
-    try {
-      await api.patch(`/admin/labs/${lab._id}`, {
-        deductionPercentage: e.deductionPercentage ?? lab.deductionPercentage,
-      });
-      toast.success('Updated');
-      refresh();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed');
+  const handleUnlock = async (e) => {
+    e.preventDefault();
+    if (!unlockPassword.trim()) {
+      return toast.error('Enter admin lab-access password');
     }
+    setUnlocking(true);
+    try {
+      const res = await api.post(`/admin/labs/${unlockTarget._id}/verify-access`, {
+        password: unlockPassword,
+      });
+      if (!res.data.success) {
+        return toast.error(res.data.message || 'Incorrect password');
+      }
+      setUnlockToken(res.data.data.unlockToken);
+      setDetailLabId(unlockTarget._id);
+      setUnlockOpen(false);
+      setUnlockPassword('');
+      toast.success('Access granted');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Incorrect access password');
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const handleForgotAccessPassword = async () => {
+    setSendingForgot(true);
+    try {
+      const res = await api.post('/admin/labs/forgot-access-password');
+      toast.success(res.data.message || 'Reset link sent to your admin email');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send reset email');
+    } finally {
+      setSendingForgot(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setDetailLabId(null);
+    setUnlockToken(null);
   };
 
   if (isLoading) return <Loader message="Loading laboratories..." />;
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-slate-500">
+        View details requires the <span className="font-semibold">admin lab-access password</span> (default{' '}
+        <span className="font-mono text-slate-700 dark:text-slate-300">123456</span>) — not the laboratory portal login.
+      </p>
       <div className="flex gap-2">
         {['', 'pending', 'active', 'suspended'].map((s) => (
           <button key={s || 'all'} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors ${statusFilter === s ? 'bg-sky-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
@@ -365,55 +482,90 @@ const LabsPanel = () => {
       {labs.length === 0 ? (
         <p className="text-sm text-slate-400 py-8 text-center">No laboratories.</p>
       ) : (
-        labs.map((lab) => {
-          const status = lab.userId?.status;
-          return (
-            <div key={lab._id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-black text-slate-900 dark:text-slate-50">{lab.labName}</p>
-                  <p className="text-xs text-slate-500">{lab.userId?.email} • {lab.city}{lab.area ? `, ${lab.area}` : ''} • Reg: {lab.registrationNumber || '—'}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setDetailLabId(lab._id)} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-sky-200 text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/20 font-bold text-xs rounded-lg"><Eye size={13} /> Details</button>
-                  <button onClick={() => downloadPdf(`/exports/admin/laboratories/${lab._id}`, `Laboratory_${(lab.labName || 'file').replace(/\s+/g, '_')}.pdf`)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg"><Download size={13} /> File</button>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${status === 'active' ? 'bg-emerald-100 text-emerald-700' : status === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>{status}</span>
-                </div>
+        labs.map((lab) => (
+          <div key={lab._id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-black text-slate-900 dark:text-slate-50 truncate">{lab.labName}</p>
+                <p className="text-xs text-slate-500 truncate">{lab.userId?.email || '—'}</p>
               </div>
-
-              {lab.registrationDocuments?.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {lab.registrationDocuments.map((d, i) => (
-                    <a key={i} href={d.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800"><FileText size={12} className="text-sky-600" /> {d.name}</a>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex flex-wrap items-end gap-4 border-t border-slate-50 dark:border-slate-800 pt-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Platform deduction %</label>
-                  <input type="number" className={inputClass} defaultValue={lab.deductionPercentage} onChange={(ev) => setEdits((s) => ({ ...s, [lab._id]: { ...s[lab._id], deductionPercentage: Number(ev.target.value) } }))} />
-                </div>
-                <button onClick={() => saveEconomics(lab)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 font-bold text-xs rounded-lg hover:bg-slate-200"><Save size={13} /> Save</button>
-
-                <div className="ml-auto flex gap-2">
-                  {status !== 'active' && (
-                    <button onClick={() => statusMutation.mutate({ id: lab._id, status: 'active' })} disabled={togglingId === lab._id} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"><CheckCircle2 size={13} /> {togglingId === lab._id ? 'Saving…' : 'Approve'}</button>
-                  )}
-                  {status === 'active' && (
-                    <button onClick={() => statusMutation.mutate({ id: lab._id, status: 'suspended' })} disabled={togglingId === lab._id} className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs rounded-lg disabled:opacity-60 disabled:cursor-not-allowed"><Ban size={13} /> {togglingId === lab._id ? 'Saving…' : 'Suspend'}</button>
-                  )}
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => openUnlock(lab)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-sky-200 text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/20 font-bold text-xs rounded-lg shrink-0"
+              >
+                <Eye size={13} /> View details
+              </button>
             </div>
-          );
-        })
+          </div>
+        ))
       )}
 
-      {detailLabId && (
+      {unlockOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <form onSubmit={handleUnlock} className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-8 shadow-2xl space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+                <Lock size={22} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Unlock laboratory profile</h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  Enter the <span className="font-semibold">admin lab-access password</span> to view{' '}
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{unlockTarget?.labName}</span>.
+                  This is not the laboratory portal login.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Access password</label>
+              <input
+                type="password"
+                autoFocus
+                value={unlockPassword}
+                onChange={(e) => setUnlockPassword(e.target.value)}
+                className="w-full px-4 py-3 mt-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-sky-500 outline-none"
+                placeholder="Enter access password"
+              />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => { setUnlockOpen(false); setUnlockPassword(''); }}
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={unlocking}
+                className="flex-[2] bg-sky-600 hover:bg-sky-700 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50"
+              >
+                {unlocking ? 'Checking…' : 'Unlock'}
+              </button>
+            </div>
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={handleForgotAccessPassword}
+                disabled={sendingForgot}
+                className="text-sm font-semibold text-sky-600 hover:text-sky-700 disabled:opacity-50"
+              >
+                {sendingForgot ? 'Sending email…' : 'Forgot password?'}
+              </button>
+              <p className="text-[11px] text-slate-400 mt-1">
+                We’ll email a reset link to your admin account.
+              </p>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {detailLabId && unlockToken && (
         <LabDetailModal
           labId={detailLabId}
-          onClose={() => setDetailLabId(null)}
+          unlockToken={unlockToken}
+          onClose={closeDetail}
           onSaved={() => queryClient.invalidateQueries({ queryKey: ['admin-labs'] })}
         />
       )}
@@ -425,65 +577,190 @@ const LabsPanel = () => {
 const ReferralsPanel = () => {
   const queryClient = useQueryClient();
   const [detailId, setDetailId] = useState(null);
+  const [unlockToken, setUnlockToken] = useState(null);
+
+  const [unlockOpen, setUnlockOpen] = useState(false);
+  const [unlockTarget, setUnlockTarget] = useState(null);
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [sendingForgot, setSendingForgot] = useState(false);
+
   const { data: referrals = [], isLoading } = useQuery({
     queryKey: ['admin-lab-referrals'],
     queryFn: async () => (await api.get('/admin/labs/referrals')).data.data,
   });
+
+  const openUnlock = (referral) => {
+    setUnlockTarget(referral);
+    setUnlockPassword('');
+    setUnlockOpen(true);
+  };
+
+  const handleUnlock = async (e) => {
+    e.preventDefault();
+    if (!unlockPassword.trim()) {
+      return toast.error('Enter admin lab-access password');
+    }
+    setUnlocking(true);
+    try {
+      const res = await api.post('/admin/labs/verify-access', {
+        password: unlockPassword,
+      });
+      if (!res.data.success) {
+        return toast.error(res.data.message || 'Incorrect password');
+      }
+      setUnlockToken(res.data.data.unlockToken);
+      setDetailId(unlockTarget._id);
+      setUnlockOpen(false);
+      setUnlockPassword('');
+      toast.success('Access granted');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Incorrect access password');
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const handleForgotAccessPassword = async () => {
+    setSendingForgot(true);
+    try {
+      const res = await api.post('/admin/labs/forgot-access-password');
+      toast.success(res.data.message || 'Reset link sent to your admin email');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send reset email');
+    } finally {
+      setSendingForgot(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setDetailId(null);
+    setUnlockToken(null);
+  };
+
   if (isLoading) return <Loader message="Loading lab referrals..." />;
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-x-auto shadow-sm">
-      <table className="min-w-full text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-950/40 text-slate-500">
-          <tr>
-            <th className="text-left px-4 py-3 font-semibold">Code</th>
-            <th className="text-left px-4 py-3 font-semibold">Patient</th>
-            <th className="text-left px-4 py-3 font-semibold">Consultant</th>
-            <th className="text-left px-4 py-3 font-semibold">Lab</th>
-            <th className="text-left px-4 py-3 font-semibold">Status</th>
-            <th className="text-left px-4 py-3 font-semibold">Consultant view</th>
-            <th className="text-left px-4 py-3 font-semibold">Bill</th>
-            <th className="px-4 py-3"></th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-          {referrals.map((r) => {
-            const access = labDetailsViewAccessOf(r);
-            return (
-            <tr key={r._id} onClick={() => setDetailId(r._id)} className="cursor-pointer hover:bg-sky-50/50 dark:hover:bg-sky-950/10 transition-colors">
-              <td className="px-4 py-3 font-mono text-xs font-bold text-sky-600">{r.referralCode}</td>
-              <td className="px-4 py-3">{r.patientName}</td>
-              <td className="px-4 py-3">{r.consultantId?.userId?.name || '—'}</td>
-              <td className="px-4 py-3">{r.targetLaboratoryId?.labName || '—'}</td>
-              <td className="px-4 py-3"><span className="text-xs font-bold capitalize">{r.status}</span></td>
-              <td className="px-4 py-3">
-                <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                  access === 'active'
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                    : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
-                }`}>
-                  {access}
-                </span>
-              </td>
-              <td className="px-4 py-3 tabular-nums">{r.billTotalPaisa ? formatPkr(r.billTotalPaisa) : '—'}</td>
-              <td className="px-4 py-3 text-right">
-                <button
-                  onClick={(e) => { e.stopPropagation(); downloadPdf(`/exports/admin/lab-referrals/${r._id}`, `Lab_Record_${r.referralCode}.pdf`); }}
-                  title="Download record PDF"
-                  className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-sky-600 transition-colors"
-                >
-                  <Download size={15} />
-                </button>
-              </td>
+    <div className="space-y-4">
+      <p className="text-xs text-slate-500">
+        View details requires the <span className="font-semibold">admin lab-access password</span> (default{' '}
+        <span className="font-mono text-slate-700 dark:text-slate-300">123456</span>) — same password as laboratory profiles.
+      </p>
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-x-auto shadow-sm">
+        <table className="min-w-full text-sm">
+          <thead className="bg-slate-50 dark:bg-slate-950/40 text-slate-500">
+            <tr>
+              <th className="text-left px-4 py-3 font-semibold">Code</th>
+              <th className="text-left px-4 py-3 font-semibold">Patient</th>
+              <th className="text-left px-4 py-3 font-semibold">Consultant</th>
+              <th className="text-left px-4 py-3 font-semibold">Lab</th>
+              <th className="text-left px-4 py-3 font-semibold">Status</th>
+              <th className="text-left px-4 py-3 font-semibold">Consultant view</th>
+              <th className="text-left px-4 py-3 font-semibold">Bill</th>
+              <th className="px-4 py-3"></th>
             </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {detailId && (
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {referrals.map((r) => {
+              const access = labDetailsViewAccessOf(r);
+              return (
+              <tr key={r._id} onClick={() => openUnlock(r)} className="cursor-pointer hover:bg-sky-50/50 dark:hover:bg-sky-950/10 transition-colors">
+                <td className="px-4 py-3 font-mono text-xs font-bold text-sky-600">{r.referralCode}</td>
+                <td className="px-4 py-3">{r.patientName}</td>
+                <td className="px-4 py-3">{r.consultantId?.userId?.name || '—'}</td>
+                <td className="px-4 py-3">{r.targetLaboratoryId?.labName || '—'}</td>
+                <td className="px-4 py-3"><span className="text-xs font-bold capitalize">{r.status}</span></td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                    access === 'active'
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                      : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400'
+                  }`}>
+                    {access}
+                  </span>
+                </td>
+                <td className="px-4 py-3 tabular-nums">{r.billTotalPaisa ? formatPkr(r.billTotalPaisa) : '—'}</td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); downloadPdf(`/exports/admin/lab-referrals/${r._id}`, `Lab_Record_${r.referralCode}.pdf`); }}
+                    title="Download record PDF"
+                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-sky-600 transition-colors"
+                  >
+                    <Download size={15} />
+                  </button>
+                </td>
+              </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {unlockOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <form onSubmit={handleUnlock} className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-8 shadow-2xl space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+                <Lock size={22} />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Unlock lab referral</h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  Enter the <span className="font-semibold">admin lab-access password</span> to view{' '}
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{unlockTarget?.referralCode}</span>
+                  {unlockTarget?.patientName ? ` (${unlockTarget.patientName})` : ''}.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Access password</label>
+              <input
+                type="password"
+                autoFocus
+                value={unlockPassword}
+                onChange={(e) => setUnlockPassword(e.target.value)}
+                className="w-full px-4 py-3 mt-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-sky-500 outline-none"
+                placeholder="Enter access password"
+              />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => { setUnlockOpen(false); setUnlockPassword(''); setUnlockTarget(null); }}
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={unlocking}
+                className="flex-[2] bg-sky-600 hover:bg-sky-700 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50"
+              >
+                {unlocking ? 'Checking…' : 'Unlock'}
+              </button>
+            </div>
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={handleForgotAccessPassword}
+                disabled={sendingForgot}
+                className="text-sm font-semibold text-sky-600 hover:text-sky-700 disabled:opacity-50"
+              >
+                {sendingForgot ? 'Sending email…' : 'Forgot password?'}
+              </button>
+              <p className="text-[11px] text-slate-400 mt-1">
+                We’ll email a reset link to your admin account.
+              </p>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {detailId && unlockToken && (
         <LabReferralDetailModal
           referralId={detailId}
           editable
-          onClose={() => setDetailId(null)}
+          unlockToken={unlockToken}
+          onClose={closeDetail}
           onSaved={() => queryClient.invalidateQueries({ queryKey: ['admin-lab-referrals'] })}
         />
       )}

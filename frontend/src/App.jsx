@@ -15,6 +15,10 @@ import HospitalRegister from './pages/HospitalRegister';
 import LaboratoryRegister from './pages/LaboratoryRegister';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import ResetLabAccessPassword from './pages/ResetLabAccessPassword';
+import ResetReferralAccessPassword from './pages/ResetReferralAccessPassword';
+import ResetConsultantAccessPassword from './pages/ResetConsultantAccessPassword';
+import ResetHospitalAccessPassword from './pages/ResetHospitalAccessPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import ConsultantDashboard from './pages/ConsultantDashboard';
 import SmartIntakeForm from './pages/SmartIntakeForm';
@@ -130,6 +134,10 @@ function App() {
             <Route path="/register/laboratory" element={<LaboratoryRegister />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/reset-lab-access" element={<ResetLabAccessPassword />} />
+            <Route path="/reset-referral-access" element={<ResetReferralAccessPassword />} />
+            <Route path="/reset-consultant-access" element={<ResetConsultantAccessPassword />} />
+            <Route path="/reset-hospital-access" element={<ResetHospitalAccessPassword />} />
           </Route>
 
           <Route element={<DashboardLayout />}>

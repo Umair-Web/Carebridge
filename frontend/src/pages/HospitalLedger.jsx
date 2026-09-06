@@ -96,11 +96,11 @@ const HospitalLedger = () => {
       {/* Grid of metrics cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Metric 1 */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-2xl shadow-sm space-y-1.5 transition-colors">
+        {/* <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-2xl shadow-sm space-y-1.5 transition-colors">
           <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Gross Billing</p>
           <p className="text-2xl sm:text-3xl font-black text-slate-800 dark:text-slate-50 tabular-nums transition-colors">{formatPkr(totalBilled)}</p>
           <p className="text-[10px] text-slate-400 dark:text-slate-500">Total payments collected</p>
-        </div>
+        </div> */}
 
         {/* Metric 2 */}
         <div className="bg-slate-900 dark:bg-teal-950/20 border border-slate-800 dark:border-teal-900/40 p-5 rounded-2xl shadow-lg space-y-1.5 text-white dark:text-slate-100 transition-colors">
@@ -110,11 +110,11 @@ const HospitalLedger = () => {
         </div>
 
         {/* Metric 3 */}
-        <div className="bg-teal-50/50 dark:bg-slate-900 border border-teal-100/60 dark:border-slate-800 p-5 rounded-2xl shadow-sm space-y-1.5 transition-colors">
+        {/* <div className="bg-teal-50/50 dark:bg-slate-900 border border-teal-100/60 dark:border-slate-800 p-5 rounded-2xl shadow-sm space-y-1.5 transition-colors">
           <p className="text-[10px] font-black text-teal-700 dark:text-teal-400 uppercase tracking-widest">Net Revenue</p>
           <p className="text-2xl sm:text-3xl font-black text-teal-800 dark:text-teal-300 tabular-nums transition-colors">{formatPkr(totalHospitalNet)}</p>
           <p className="text-[10px] text-teal-600/80 dark:text-teal-400/80">Hospital net profit kept</p>
-        </div>
+        </div> */}
       </div>
 
       {/* Filter and Table */}

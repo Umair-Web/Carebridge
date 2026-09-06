@@ -75,6 +75,10 @@ const AdminConsultants = () => {
   const [pendingView, setPendingView] = useState(null);
   const [unlockPassword, setUnlockPassword] = useState('');
   const [unlocking, setUnlocking] = useState(false);
+  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
+  const [accessNewPassword, setAccessNewPassword] = useState('');
+  const [savingAccessPw, setSavingAccessPw] = useState(false);
+  const [sendingForgot, setSendingForgot] = useState(false);
   const [profileUnlockToken, setProfileUnlockToken] = useState(null);
   
   const [profileData, setProfileData] = useState(null);
@@ -91,7 +95,7 @@ const AdminConsultants = () => {
     if (!p) { setCommForm(null); return; }
     setCommForm({
       commissionModel: p.commissionModel || 'legacy',
-      commissionPercentage: p.commissionPercentage ?? 60,
+      commissionPercentage: p.commissionPercentage ?? 0,
       hospitalCommissionType: p.hospitalCommissionType || 'percentage',
       hospitalCommissionPercentage: p.hospitalCommissionPercentage ?? 0,
       hospitalFixedCommissionRupees: (p.hospitalFixedCommissionPaisa || 0) / 100,
@@ -178,13 +182,54 @@ const AdminConsultants = () => {
     setProfileData(null);
     setProfileUnlockToken(null);
     setConsultantEditOpen(false);
+    setAccessCurrentPassword('');
+    setAccessNewPassword('');
+  };
+
+  const changeAccessPassword = async (e) => {
+    e.preventDefault();
+    if (!profileUnlockToken) {
+      toast.error('Unlock a consultant profile first');
+      return;
+    }
+    if (!accessCurrentPassword || !accessNewPassword) {
+      toast.error('Enter current and new access passwords');
+      return;
+    }
+    setSavingAccessPw(true);
+    try {
+      await api.patch(
+        '/admin/consultants/access-password',
+        { currentPassword: accessCurrentPassword, newPassword: accessNewPassword },
+        { headers: { 'X-Profile-Unlock': profileUnlockToken } }
+      );
+      toast.success('Detail access password updated');
+      setAccessCurrentPassword('');
+      setAccessNewPassword('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update access password');
+    } finally {
+      setSavingAccessPw(false);
+    }
+  };
+
+  const handleForgotAccessPassword = async () => {
+    setSendingForgot(true);
+    try {
+      const res = await api.post('/admin/consultants/forgot-access-password');
+      toast.success(res.data.message || 'Reset link sent to your admin email');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send reset email');
+    } finally {
+      setSendingForgot(false);
+    }
   };
 
   const submitUnlock = async (e) => {
     e.preventDefault();
     if (!pendingView?._id) return;
     if (!unlockPassword) {
-      toast.error('Enter the consultant password');
+      toast.error('Enter the detail access password');
       return;
     }
     setUnlocking(true);
@@ -259,7 +304,6 @@ const AdminConsultants = () => {
       clinicAddress: p.clinicAddress || '',
       city: p.city || '',
       cnic: p.cnic || '',
-      commissionPercentage: p.commissionPercentage ?? 60,
       maxLabDiscountPercentage: p.maxLabDiscountPercentage ?? 15,
       isVerified: p.isVerified === true,
     });
@@ -269,7 +313,11 @@ const AdminConsultants = () => {
   const saveConsultantEdit = async () => {
     setActionId(selected._id);
     try {
-      await api.patch(`/admin/consultants/${selected._id}`, consultantEditForm);
+      // Doctor commission is fixed at 0 — not editable from this form.
+      await api.patch(`/admin/consultants/${selected._id}`, {
+        ...consultantEditForm,
+        commissionPercentage: 0,
+      });
       toast.success('Consultant profile updated');
       setConsultantEditOpen(false);
       const res = await api.get(`/admin/consultants/${selected._id}/profile`, {
@@ -412,7 +460,7 @@ const AdminConsultants = () => {
         </table>
       </div>
 
-      {/* Password gate — must verify consultant password before opening profile */}
+      {/* Password gate — admin detail access password (not consultant portal login) */}
       {pendingView && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closePasswordGate} />
@@ -425,7 +473,8 @@ const AdminConsultants = () => {
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Password required</h3>
                   <p className="text-sm text-slate-500 mt-0.5">
-                    Enter the login password for <span className="font-semibold text-slate-700">{pendingView.name}</span> to view their profile.
+                    Enter the <span className="font-semibold text-slate-700">admin detail access password</span> to view{' '}
+                    <span className="font-semibold text-slate-700">{pendingView.name}</span>’s profile.
                   </p>
                 </div>
               </div>
@@ -441,14 +490,14 @@ const AdminConsultants = () => {
             <form onSubmit={submitUnlock} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Consultant password
+                  Detail access password
                 </label>
                 <input
                   type="password"
                   autoFocus
                   value={unlockPassword}
                   onChange={(e) => setUnlockPassword(e.target.value)}
-                  placeholder="Enter consultant password"
+                  placeholder="Enter access password"
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
@@ -467,6 +516,19 @@ const AdminConsultants = () => {
                 >
                   {unlocking ? 'Verifying…' : 'Unlock profile'}
                 </button>
+              </div>
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={handleForgotAccessPassword}
+                  disabled={sendingForgot}
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                >
+                  {sendingForgot ? 'Sending email…' : 'Forgot password?'}
+                </button>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  We’ll email a reset link to your admin account.
+                </p>
               </div>
             </form>
           </div>
@@ -850,6 +912,37 @@ const AdminConsultants = () => {
             ) : (
               <div className="py-12 text-center text-red-500 text-sm">Failed to compile details.</div>
             )}
+
+            <form onSubmit={changeAccessPassword} className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                <Shield size={16} className="text-amber-600" />
+                Change detail access password
+              </div>
+              <p className="text-xs text-slate-500">
+                Password used by admins to open consultant profiles (not the consultant portal login). Default is 123456.
+              </p>
+              <input
+                type="password"
+                value={accessCurrentPassword}
+                onChange={(e) => setAccessCurrentPassword(e.target.value)}
+                placeholder="Current access password"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+              <input
+                type="password"
+                value={accessNewPassword}
+                onChange={(e) => setAccessNewPassword(e.target.value)}
+                placeholder="New access password"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+              <button
+                type="submit"
+                disabled={savingAccessPw}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50"
+              >
+                {savingAccessPw ? 'Updating…' : 'Update access password'}
+              </button>
+            </form>
           </div>
         )}
       </DetailModal>
@@ -862,10 +955,6 @@ const AdminConsultants = () => {
             <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="CNIC" value={consultantEditForm.cnic || ''} onChange={(e) => setConsultantEditForm({ ...consultantEditForm, cnic: e.target.value })} />
             <input className="w-full border rounded-xl px-3 py-2 text-sm" placeholder="Clinic name" value={consultantEditForm.clinicName || ''} onChange={(e) => setConsultantEditForm({ ...consultantEditForm, clinicName: e.target.value })} />
             <textarea className="w-full border rounded-xl px-3 py-2 text-sm" rows={2} placeholder="Clinic address" value={consultantEditForm.clinicAddress || ''} onChange={(e) => setConsultantEditForm({ ...consultantEditForm, clinicAddress: e.target.value })} />
-            <div>
-              <label className="block text-xs font-bold text-slate-500 mb-1">Commission %</label>
-              <input className="w-full border rounded-xl px-3 py-2 text-sm" type="number" placeholder="Commission %" value={consultantEditForm.commissionPercentage ?? ''} onChange={(e) => setConsultantEditForm({ ...consultantEditForm, commissionPercentage: Number(e.target.value) })} />
-            </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-1">Max lab discount % (patient discount this consultant may offer on lab referrals)</label>
               <input className="w-full border rounded-xl px-3 py-2 text-sm" type="number" min="0" max="100" placeholder="Max lab discount %" value={consultantEditForm.maxLabDiscountPercentage ?? ''} onChange={(e) => setConsultantEditForm({ ...consultantEditForm, maxLabDiscountPercentage: Number(e.target.value) })} />

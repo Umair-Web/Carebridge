@@ -24,6 +24,26 @@ router.post('/resend-verification', authController.resendVerification);
 
 router.post('/forgot-password', authLimiter, authController.forgotPassword);
 router.post('/reset-password', authLimiter, authController.resetPassword);
+router.post(
+  '/reset-lab-access-password',
+  authLimiter,
+  require('../controllers/labAdminController').resetLabProfileAccessPassword
+);
+router.post(
+  '/reset-referral-access-password',
+  authLimiter,
+  require('../controllers/referralController').resetReferralDetailsPassword
+);
+router.post(
+  '/reset-consultant-access-password',
+  authLimiter,
+  require('../controllers/adminController').resetConsultantProfileAccessPassword
+);
+router.post(
+  '/reset-hospital-access-password',
+  authLimiter,
+  require('../controllers/adminController').resetHospitalProfileAccessPassword
+);
 router.get('/platform-settings', authController.getPlatformBrandingSettings);
 
 module.exports = router;

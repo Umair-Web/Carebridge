@@ -7,6 +7,46 @@ const {
   getActiveDepartmentNames,
   normalizeDepartmentsUpdate,
 } = require('../utils/hospitalDepartments');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+const DEFAULT_DOCTOR_PROFILE_ACCESS_PASSWORD = '123456';
+const DEFAULT_DOCTOR_PASSWORD = '123456';
+
+async function ensureHospitalDoctorAccessPassword(hospital) {
+  if (hospital.doctorProfileAccessPasswordHash) return hospital;
+  hospital.doctorProfileAccessPasswordHash = await bcrypt.hash(DEFAULT_DOCTOR_PROFILE_ACCESS_PASSWORD, 10);
+  await hospital.save();
+  return hospital;
+}
+
+function assertDoctorProfileUnlock(req, hospitalId) {
+  const token = req.headers['x-doctor-profile-unlock'];
+  if (!token) {
+    const err = new Error('Hospital doctor-access password required');
+    err.statusCode = 403;
+    throw err;
+  }
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    const err = new Error('Unlock expired or invalid. Enter password again.');
+    err.statusCode = 403;
+    throw err;
+  }
+  if (decoded.purpose !== 'hospital_doctor_profile_unlock' || decoded.hospitalId !== String(hospitalId)) {
+    const err = new Error('Unlock is not valid for this hospital');
+    err.statusCode = 403;
+    throw err;
+  }
+}
+
+const sanitizeDoctor = (doc) => {
+  const o = doc.toObject ? doc.toObject() : { ...doc };
+  delete o.passwordHash;
+  return o;
+};
 
 exports.listDoctors = async (req, res) => {
   try {
@@ -15,9 +55,114 @@ exports.listDoctors = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Hospital profile not found' });
     }
     const doctors = await HospitalDoctor.find({ hospitalId: hospital._id }).sort({ name: 1 });
-    res.json({ success: true, data: doctors });
+    res.json({ success: true, data: doctors.map(sanitizeDoctor) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error fetching doctors' });
+  }
+};
+
+/** Verify hospital doctor-profile access password and return short-lived unlock token. */
+exports.verifyDoctorProfileAccess = async (req, res) => {
+  try {
+    const hospital = await getHospitalForUser(req.user);
+    if (!hospital) {
+      return res.status(404).json({ success: false, message: 'Hospital profile not found' });
+    }
+    const password = String(req.body.password || '');
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    await ensureHospitalDoctorAccessPassword(hospital);
+    const ok = await bcrypt.compare(password, hospital.doctorProfileAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Incorrect access password' });
+    }
+
+    const doctorId = req.body.doctorId || req.params.id;
+    if (doctorId) {
+      const doctor = await HospitalDoctor.findOne({ _id: doctorId, hospitalId: hospital._id });
+      if (!doctor) {
+        return res.status(404).json({ success: false, message: 'Doctor not found' });
+      }
+    }
+
+    const unlockToken = jwt.sign(
+      {
+        purpose: 'hospital_doctor_profile_unlock',
+        hospitalId: String(hospital._id),
+        doctorId: doctorId ? String(doctorId) : undefined,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+
+    res.json({
+      success: true,
+      data: { unlockToken, expiresInMinutes: 30 },
+    });
+  } catch (error) {
+    console.error('verifyDoctorProfileAccess:', error);
+    res.status(500).json({ success: false, message: 'Failed to verify access password' });
+  }
+};
+
+exports.changeDoctorProfileAccessPassword = async (req, res) => {
+  try {
+    const hospital = await getHospitalForUser(req.user);
+    if (!hospital) {
+      return res.status(404).json({ success: false, message: 'Hospital profile not found' });
+    }
+    assertDoctorProfileUnlock(req, hospital._id);
+
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    await ensureHospitalDoctorAccessPassword(hospital);
+    const ok = await bcrypt.compare(currentPassword, hospital.doctorProfileAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Current access password is incorrect' });
+    }
+
+    hospital.doctorProfileAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await hospital.save();
+    res.json({ success: true, message: 'Hospital doctor-access password updated' });
+  } catch (error) {
+    const status = error.statusCode || 500;
+    res.status(status).json({ success: false, message: error.message || 'Failed to update access password' });
+  }
+};
+
+exports.changeDoctorPassword = async (req, res) => {
+  try {
+    const hospital = await getHospitalForUser(req.user);
+    if (!hospital) {
+      return res.status(404).json({ success: false, message: 'Hospital profile not found' });
+    }
+    assertDoctorProfileUnlock(req, hospital._id);
+
+    const newPassword = String(req.body.newPassword || '');
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    const doctor = await HospitalDoctor.findOne({ _id: req.params.id, hospitalId: hospital._id }).select('+passwordHash');
+    if (!doctor) {
+      return res.status(404).json({ success: false, message: 'Doctor not found' });
+    }
+
+    doctor.passwordHash = await bcrypt.hash(newPassword, 10);
+    await doctor.save();
+    res.json({ success: true, message: 'Doctor password updated' });
+  } catch (error) {
+    const status = error.statusCode || 500;
+    res.status(status).json({ success: false, message: error.message || 'Failed to update doctor password' });
   }
 };
 
@@ -25,7 +170,8 @@ exports.addDoctor = async (req, res) => {
   try {
     const hospital = await getHospitalForUser(req.user);
     const { name, specialty, pmdcNumber, consultationFee, phone, email } = req.body;
-    
+
+    const passwordHash = await bcrypt.hash(DEFAULT_DOCTOR_PASSWORD, 10);
     const doctor = await HospitalDoctor.create({
       name,
       specialty,
@@ -34,10 +180,11 @@ exports.addDoctor = async (req, res) => {
       consultationFee: consultationFee * 100, // Convert to paisa
       phone,
       email,
-      isAvailable: true
+      isAvailable: true,
+      passwordHash,
     });
-    
-    res.status(201).json({ success: true, data: doctor });
+
+    res.status(201).json({ success: true, data: sanitizeDoctor(doctor) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error adding doctor' });
   }
@@ -47,19 +194,27 @@ exports.updateDoctor = async (req, res) => {
   try {
     const hospital = await getHospitalForUser(req.user);
     const { id } = req.params;
+    assertDoctorProfileUnlock(req, hospital._id);
+
     const updates = { ...req.body };
-    if (updates.consultationFee) updates.consultationFee *= 100;
+    delete updates.passwordHash;
+    delete updates.password;
+    delete updates.hospitalId;
+    if (updates.consultationFee != null && updates.consultationFee !== '') {
+      updates.consultationFee = Number(updates.consultationFee) * 100;
+    }
 
     const doctor = await HospitalDoctor.findOneAndUpdate(
       { _id: id, hospitalId: hospital._id },
       updates,
       { new: true }
     );
-    
+
     if (!doctor) return res.status(404).json({ success: false, message: 'Doctor not found' });
-    res.json({ success: true, data: doctor });
+    res.json({ success: true, data: sanitizeDoctor(doctor) });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error updating doctor' });
+    const status = error.statusCode || 500;
+    res.status(status).json({ success: false, message: error.message || 'Error updating doctor' });
   }
 };
 
@@ -67,13 +222,34 @@ exports.deleteDoctor = async (req, res) => {
   try {
     const hospital = await getHospitalForUser(req.user);
     const { id } = req.params;
-    
+    assertDoctorProfileUnlock(req, hospital._id);
+
     const doctor = await HospitalDoctor.findOneAndDelete({ _id: id, hospitalId: hospital._id });
     if (!doctor) return res.status(404).json({ success: false, message: 'Doctor not found' });
-    
+
     res.json({ success: true, message: 'Doctor removed' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error deleting doctor' });
+    const status = error.statusCode || 500;
+    res.status(status).json({ success: false, message: error.message || 'Error deleting doctor' });
+  }
+};
+
+/** Availability toggle does not require unlock (quick action on cards). */
+exports.toggleDoctorAvailability = async (req, res) => {
+  try {
+    const hospital = await getHospitalForUser(req.user);
+    const { id } = req.params;
+    const isAvailable = req.body.isAvailable;
+
+    const doctor = await HospitalDoctor.findOneAndUpdate(
+      { _id: id, hospitalId: hospital._id },
+      { isAvailable: Boolean(isAvailable) },
+      { new: true }
+    );
+    if (!doctor) return res.status(404).json({ success: false, message: 'Doctor not found' });
+    res.json({ success: true, data: sanitizeDoctor(doctor) });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error updating availability' });
   }
 };
 

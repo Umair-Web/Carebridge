@@ -12,9 +12,12 @@ const ReferralDetailsPasswordGate = ({
   onClose,
   onUnlocked,
   verifyPath,
+  allowForgotPassword = false,
+  forgotPath,
 }) => {
   const [password, setPassword] = useState('');
   const [unlocking, setUnlocking] = useState(false);
+  const [sendingForgot, setSendingForgot] = useState(false);
 
   if (!referral) return null;
 
@@ -26,10 +29,14 @@ const ReferralDetailsPasswordGate = ({
     verifyPath ||
     `/referrals/${referral._id}/verify-details-password`;
 
+  const forgotEndpoint =
+    forgotPath ||
+    `/admin/referrals/${referral._id}/forgot-details-password`;
+
   const submit = async (e) => {
     e.preventDefault();
     if (!password) {
-      toast.error('Enter the patient details password');
+      toast.error('Enter the referral access password');
       return;
     }
     setUnlocking(true);
@@ -46,6 +53,18 @@ const ReferralDetailsPasswordGate = ({
     }
   };
 
+  const handleForgot = async () => {
+    setSendingForgot(true);
+    try {
+      const res = await api.post(forgotEndpoint);
+      toast.success(res.data.message || 'Reset link sent to your admin email');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send reset email');
+    } finally {
+      setSendingForgot(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
@@ -58,7 +77,7 @@ const ReferralDetailsPasswordGate = ({
             <div>
               <h3 className="text-lg font-bold text-slate-900">Password required</h3>
               <p className="text-sm text-slate-500 mt-0.5">
-                Enter the patient details password for{' '}
+                Enter the referral access password for{' '}
                 <span className="font-semibold text-slate-700">{label}</span>.
               </p>
             </div>
@@ -75,14 +94,14 @@ const ReferralDetailsPasswordGate = ({
         <form onSubmit={submit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-              Patient details password
+              Referral access password
             </label>
             <input
               type="password"
               autoFocus
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password"
+              placeholder="Enter access password"
               className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
@@ -102,6 +121,21 @@ const ReferralDetailsPasswordGate = ({
               {unlocking ? 'Verifying…' : 'Unlock details'}
             </button>
           </div>
+          {allowForgotPassword && (
+            <div className="text-center pt-1 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleForgot}
+                disabled={sendingForgot}
+                className="text-sm font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+              >
+                {sendingForgot ? 'Sending email…' : 'Forgot password?'}
+              </button>
+              <p className="text-[11px] text-slate-400 mt-1">
+                We’ll email a reset link to your admin account.
+              </p>
+            </div>
+          )}
         </form>
       </div>
     </div>

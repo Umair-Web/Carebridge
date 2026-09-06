@@ -104,7 +104,7 @@ const DashboardLayout = () => {
             <NavLink to="/dashboard" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Home</NavLink>
             <NavLink to="/referrals/new" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>New</NavLink>
             <NavLink to="/referrals" className={({ isActive }) => mobileNavClass(isActive || location.pathname === '/referrals/new')} style={({ isActive }) => mobileNavStyle(isActive || location.pathname === '/referrals/new')}>List</NavLink>
-            <NavLink to="/earnings" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Earn</NavLink>
+            {/* <NavLink to="/earnings" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Earn</NavLink> */}
             <NavLink to="/lab-referrals" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Lab</NavLink>
             <NavLink to="/profile" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Profile</NavLink>
           </>
@@ -182,7 +182,7 @@ const DashboardLayout = () => {
               <BrandNavLink to="/dashboard"><span>Dashboard</span></BrandNavLink>
               <BrandNavLink to="/referrals/new" end><span>New referral</span></BrandNavLink>
               <BrandNavLink to="/referrals" end><span>My referrals</span></BrandNavLink>
-              <BrandNavLink to="/earnings"><span>Earnings</span></BrandNavLink>
+              {/* <BrandNavLink to="/earnings"><span>Earnings</span></BrandNavLink> */}
               <BrandNavLink to="/lab-referrals"><span>Laboratory</span></BrandNavLink>
               <BrandNavLink to="/profile"><span>Profile settings</span></BrandNavLink>
             </>

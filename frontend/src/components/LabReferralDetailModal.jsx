@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, FileText, Pencil, Save, Plus, Trash2 } from 'lucide-react';
+import { X, FileText, Pencil, Save, Plus, Trash2, Shield } from 'lucide-react';
 import api from '../utils/api';
 import { formatPkr } from '../utils/formatPkr';
 import toast from 'react-hot-toast';
@@ -36,13 +36,17 @@ const toLocalDT = (d) => {
 /**
  * Full lab-referral detail. Read-only for consultants; admins (editable=true) get an inline edit form
  * that saves via PATCH /admin/labs/referrals/:id. Admin can Activate/Suspend consultant view (no password).
+ * When unlockToken is provided (admin lab-access unlock), shows change access password at the bottom.
  */
-const LabReferralDetailModal = ({ referralId, editable = false, onClose, onSaved }) => {
+const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = null, onClose, onSaved }) => {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [togglingAccess, setTogglingAccess] = useState(false);
+  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
+  const [accessNewPassword, setAccessNewPassword] = useState('');
+  const [savingAccessPw, setSavingAccessPw] = useState(false);
 
   const { data: referral, isLoading, isError, error } = useQuery({
     queryKey: ['lab-referral-detail', referralId],
@@ -123,6 +127,61 @@ const LabReferralDetailModal = ({ referralId, editable = false, onClose, onSaved
       setSaving(false);
     }
   };
+
+  const changeAccessPassword = async (e) => {
+    e.preventDefault();
+    if (!unlockToken) return;
+    if (!accessCurrentPassword || !accessNewPassword) {
+      return toast.error('Enter current and new access passwords');
+    }
+    if (accessNewPassword.length < 4) {
+      return toast.error('New password must be at least 4 characters');
+    }
+    setSavingAccessPw(true);
+    try {
+      await api.patch(
+        '/admin/labs/access-password',
+        { currentPassword: accessCurrentPassword, newPassword: accessNewPassword },
+        { headers: { 'X-Lab-Profile-Unlock': unlockToken } }
+      );
+      toast.success('Admin lab-access password updated');
+      setAccessCurrentPassword('');
+      setAccessNewPassword('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update access password');
+    } finally {
+      setSavingAccessPw(false);
+    }
+  };
+
+  const accessPasswordForm = unlockToken ? (
+    <form onSubmit={changeAccessPassword} className="rounded-2xl border border-amber-100 bg-amber-50/40 dark:bg-amber-950/10 p-4 space-y-3">
+      <div className="flex items-center gap-2 text-slate-900 dark:text-slate-50 font-bold text-sm">
+        <Shield size={16} className="text-amber-600" />
+        Change admin lab-access password
+      </div>
+      <p className="text-xs text-slate-500">
+        Password used to open laboratory profiles and lab referral details in admin (not the lab portal login).
+      </p>
+      <input
+        type="password"
+        value={accessCurrentPassword}
+        onChange={(e) => setAccessCurrentPassword(e.target.value)}
+        placeholder="Current access password"
+        className={input}
+      />
+      <input
+        type="password"
+        value={accessNewPassword}
+        onChange={(e) => setAccessNewPassword(e.target.value)}
+        placeholder="New access password"
+        className={input}
+      />
+      <button type="submit" disabled={savingAccessPw} className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50">
+        {savingAccessPw ? 'Updating…' : 'Update access password'}
+      </button>
+    </form>
+  ) : null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
@@ -231,6 +290,8 @@ const LabReferralDetailModal = ({ referralId, editable = false, onClose, onSaved
                 {referral.patientBillFileUrl && <a href={referral.patientBillFileUrl} target="_blank" rel="noreferrer" className="text-xs text-sky-400 underline">View patient bill</a>}
               </section>
             )}
+
+            {accessPasswordForm}
           </div>
         ) : (
           // ── Admin edit ──
@@ -267,6 +328,8 @@ const LabReferralDetailModal = ({ referralId, editable = false, onClose, onSaved
               <button onClick={() => setEditing(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
               <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-lg disabled:opacity-60"><Save size={16} /> Save</button>
             </div>
+
+            {accessPasswordForm}
           </div>
         )}
       </div>

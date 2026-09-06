@@ -304,7 +304,7 @@ const HospitalAdmissions = () => {
                 </div>
 
                 {a.admissionDepartment && (
-                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 grid grid-cols-2 sm:grid-cols-2 gap-4 text-xs">
                     <div>
                       <span className="font-bold text-slate-400 uppercase tracking-wider block text-[9px] mb-0.5">Admitted Department</span>
                       <span className="font-semibold text-slate-700">{a.admissionDepartment}</span>
@@ -316,6 +316,12 @@ const HospitalAdmissions = () => {
                     <div>
                       <span className="font-bold text-slate-400 uppercase tracking-wider block text-[9px] mb-0.5">Room & Bed Number</span>
                       <span className="font-semibold text-slate-700">Room: {a.roomNumber} · Bed: {a.bedNumber}</span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-400 uppercase tracking-wider block text-[9px] mb-0.5">Referring Consultant</span>
+                      <span className="font-semibold text-slate-700">
+                        {a.referringConsultantName || a.consultantId?.userId?.name || '—'}
+                      </span>
                     </div>
                     {a.status === 'active' && (
                       <div className="col-span-full pt-2">
@@ -350,13 +356,7 @@ const HospitalAdmissions = () => {
 
                         <div className="space-y-4">
                           <div className="grid sm:grid-cols-2 gap-3 bg-white border border-slate-200 rounded-xl p-4 text-sm">
-                            <div>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Referring Consultant</p>
-                              <p className="font-semibold text-slate-800">
-                                {a.referringConsultantName || a.consultantId?.userId?.name || '—'}
-                              </p>
-                            </div>
-                            <div>
+                            <div className="sm:col-span-2">
                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Platform Charge Type</p>
                               <p className="font-semibold text-slate-800 capitalize">
                                 {a.platformChargeType === 'fixed' ? 'Fixed per referral' : (a.platformChargeType || 'fixed')}
@@ -436,9 +436,9 @@ const HospitalAdmissions = () => {
                     <span className="font-bold text-slate-900">
                       {formatPkr(a.status === 'billed' ? a.billTotalPaisa : (a.expectedPlatformChargePaisa || a.billTotalPaisa || 0))}
                     </span>
-                    {a.referringConsultantName ? (
+                    {/* {a.referringConsultantName ? (
                       <span className="text-slate-400 text-xs ml-2">· via {a.referringConsultantName}</span>
-                    ) : null}
+                    ) : null} */}
                   </p>
                 )}
               </li>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Activity, AlertCircle, Search, Edit2, Trash2, X, Check, Eye, Download, KeyRound } from 'lucide-react';
+import { Activity, AlertCircle, Search, Edit2, Trash2, X, Check, Eye, Download, KeyRound, Shield } from 'lucide-react';
 import { downloadPdf } from '../../utils/downloadFile';
 import toast from 'react-hot-toast';
 import api from '../../utils/api';
@@ -20,6 +20,8 @@ const AdminReferrals = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [deleteConfirmStep, setDeleteConfirmStep] = useState(0); // 0: none, 1: first click, 2: typing name
   const [changingDetailsPassword, setChangingDetailsPassword] = useState(false);
+  const [accessNewPassword, setAccessNewPassword] = useState('');
+  const [accessConfirmPassword, setAccessConfirmPassword] = useState('');
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -86,6 +88,8 @@ const AdminReferrals = () => {
     setIsEditing(false);
     setDeleteConfirmStep(0);
     setChangingDetailsPassword(false);
+    setAccessNewPassword('');
+    setAccessConfirmPassword('');
   };
 
   const updateMutation = useMutation({
@@ -139,20 +143,27 @@ const AdminReferrals = () => {
     }
   };
 
-  const handleChangeDetailsPassword = async () => {
+  const handleChangeDetailsPassword = async (e) => {
+    e?.preventDefault?.();
     if (!selectedRef?._id) return;
-    const newPass = window.prompt('Enter new patient details password (minimum 6 characters):');
-    if (newPass == null) return;
-    if (newPass.length < 6) {
+    if (!accessNewPassword || accessNewPassword.length < 6) {
       toast.error('Password must be at least 6 characters');
+      return;
+    }
+    if (accessNewPassword !== accessConfirmPassword) {
+      toast.error('Passwords do not match');
       return;
     }
     setChangingDetailsPassword(true);
     try {
       const res = await api.post(`/admin/referrals/${selectedRef._id}/change-details-password`, {
-        password: newPass,
+        password: accessNewPassword,
       });
-      if (res.data.success) toast.success('Patient details password updated');
+      if (res.data.success) {
+        toast.success(res.data.message || 'Referral access password updated');
+        setAccessNewPassword('');
+        setAccessConfirmPassword('');
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to change password');
     } finally {
@@ -329,6 +340,8 @@ const AdminReferrals = () => {
         <ReferralDetailsPasswordGate
           referral={pendingUnlock}
           verifyPath={`/admin/referrals/${pendingUnlock._id}/verify-details-password`}
+          allowForgotPassword
+          forgotPath={`/admin/referrals/${pendingUnlock._id}/forgot-details-password`}
           onClose={() => setPendingUnlock(null)}
           onUnlocked={() => {
             setSelectedRef(pendingUnlock);
@@ -371,14 +384,6 @@ const AdminReferrals = () => {
                     }`}
                   >
                     {detailsViewAccessOf(selectedRef) === 'active' ? 'Suspend' : 'Activate'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleChangeDetailsPassword}
-                    disabled={changingDetailsPassword}
-                    className="inline-flex h-9 items-center gap-1.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all disabled:opacity-50"
-                  >
-                    <KeyRound size={14} /> {changingDetailsPassword ? '…' : 'Change password'}
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl text-sm border border-slate-100">
@@ -519,6 +524,41 @@ const AdminReferrals = () => {
                     <Edit2 className="w-4 h-4" /> Edit Referral
                   </button>
                 </div>
+
+                <form
+                  onSubmit={handleChangeDetailsPassword}
+                  className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4 space-y-3 mt-2"
+                >
+                  <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                    <Shield size={16} className="text-amber-600" />
+                    Change referral access password
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Password used to unlock this referral&apos;s details.
+                  </p>
+                  <input
+                    type="password"
+                    value={accessNewPassword}
+                    onChange={(e) => setAccessNewPassword(e.target.value)}
+                    placeholder="New access password (min 6 characters)"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                  />
+                  <input
+                    type="password"
+                    value={accessConfirmPassword}
+                    onChange={(e) => setAccessConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                  />
+                  <button
+                    type="submit"
+                    disabled={changingDetailsPassword}
+                    className="w-full inline-flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50"
+                  >
+                    <KeyRound size={14} />
+                    {changingDetailsPassword ? 'Updating…' : 'Update access password'}
+                  </button>
+                </form>
               </>
             ) : (
               // Edit Mode Form
@@ -770,4 +810,4 @@ const AdminReferrals = () => {
   );
 };
 
-export default AdminReferrals;
+export default AdminReferrals

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Building2, Eye, Search, BedDouble, Stethoscope, Download, Lock, X } from 'lucide-react';
+import { Building2, Eye, Search, BedDouble, Stethoscope, Download, Lock, X, Shield } from 'lucide-react';
 import { downloadPdf } from '../../utils/downloadFile';
 import api from '../../utils/api';
 import Loader from '../../components/Loader';
@@ -31,6 +31,10 @@ const AdminHospitals = () => {
   const [pendingView, setPendingView] = useState(null);
   const [unlockPassword, setUnlockPassword] = useState('');
   const [unlocking, setUnlocking] = useState(false);
+  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
+  const [accessNewPassword, setAccessNewPassword] = useState('');
+  const [savingAccessPw, setSavingAccessPw] = useState(false);
+  const [sendingForgot, setSendingForgot] = useState(false);
   const [profileUnlockToken, setProfileUnlockToken] = useState(null);
   const [platformForm, setPlatformForm] = useState({ platformChargeType: 'percentage', deductionPercentage: 20, fixedPlatformChargeRupees: 0 });
   const [patients, setPatients] = useState([]);
@@ -189,13 +193,54 @@ const AdminHospitals = () => {
     setEditOpen(false);
     setPatients([]);
     setAdminDoctors([]);
+    setAccessCurrentPassword('');
+    setAccessNewPassword('');
+  };
+
+  const changeAccessPassword = async (e) => {
+    e.preventDefault();
+    if (!profileUnlockToken) {
+      toast.error('Unlock a hospital profile first');
+      return;
+    }
+    if (!accessCurrentPassword || !accessNewPassword) {
+      toast.error('Enter current and new access passwords');
+      return;
+    }
+    setSavingAccessPw(true);
+    try {
+      await api.patch(
+        '/admin/hospitals/access-password',
+        { currentPassword: accessCurrentPassword, newPassword: accessNewPassword },
+        { headers: { 'X-Profile-Unlock': profileUnlockToken } }
+      );
+      toast.success('Detail access password updated');
+      setAccessCurrentPassword('');
+      setAccessNewPassword('');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update access password');
+    } finally {
+      setSavingAccessPw(false);
+    }
+  };
+
+  const handleForgotAccessPassword = async () => {
+    setSendingForgot(true);
+    try {
+      const res = await api.post('/admin/hospitals/forgot-access-password');
+      toast.success(res.data.message || 'Reset link sent to your admin email');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send reset email');
+    } finally {
+      setSendingForgot(false);
+    }
   };
 
   const submitUnlock = async (e) => {
     e.preventDefault();
     if (!pendingView?._id) return;
     if (!unlockPassword) {
-      toast.error('Enter the hospital password');
+      toast.error('Enter the detail access password');
       return;
     }
     setUnlocking(true);
@@ -497,7 +542,7 @@ const AdminHospitals = () => {
         </table>
       </div>
 
-      {/* Password gate — must verify hospital password before opening profile */}
+      {/* Password gate — admin detail access password (not hospital portal login) */}
       {pendingView && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closePasswordGate} />
@@ -510,11 +555,11 @@ const AdminHospitals = () => {
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Password required</h3>
                   <p className="text-sm text-slate-500 mt-0.5">
-                    Enter the login password for{' '}
+                    Enter the <span className="font-semibold text-slate-700">admin detail access password</span> to view{' '}
                     <span className="font-semibold text-slate-700">
                       {pendingView.profile?.hospitalName || pendingView.name}
-                    </span>{' '}
-                    to view their profile.
+                    </span>
+                    ’s profile.
                   </p>
                 </div>
               </div>
@@ -530,14 +575,14 @@ const AdminHospitals = () => {
             <form onSubmit={submitUnlock} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Hospital password
+                  Detail access password
                 </label>
                 <input
                   type="password"
                   autoFocus
                   value={unlockPassword}
                   onChange={(e) => setUnlockPassword(e.target.value)}
-                  placeholder="Enter hospital password"
+                  placeholder="Enter access password"
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
                 />
               </div>
@@ -556,6 +601,19 @@ const AdminHospitals = () => {
                 >
                   {unlocking ? 'Verifying…' : 'Unlock profile'}
                 </button>
+              </div>
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={handleForgotAccessPassword}
+                  disabled={sendingForgot}
+                  className="text-sm font-semibold text-teal-600 hover:text-teal-700 disabled:opacity-50"
+                >
+                  {sendingForgot ? 'Sending email…' : 'Forgot password?'}
+                </button>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  We’ll email a reset link to your admin account.
+                </p>
               </div>
             </form>
           </div>
@@ -927,6 +985,37 @@ const AdminHospitals = () => {
                 </div>
               </>
             )}
+
+            <form onSubmit={changeAccessPassword} className="rounded-2xl border border-amber-100 bg-amber-50/40 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+                <Shield size={16} className="text-amber-600" />
+                Change detail access password
+              </div>
+              <p className="text-xs text-slate-500">
+                Password used by admins to open hospital profiles (not the hospital portal login). Default is 123456.
+              </p>
+              <input
+                type="password"
+                value={accessCurrentPassword}
+                onChange={(e) => setAccessCurrentPassword(e.target.value)}
+                placeholder="Current access password"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+              <input
+                type="password"
+                value={accessNewPassword}
+                onChange={(e) => setAccessNewPassword(e.target.value)}
+                placeholder="New access password"
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+              <button
+                type="submit"
+                disabled={savingAccessPw}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50"
+              >
+                {savingAccessPw ? 'Updating…' : 'Update access password'}
+              </button>
+            </form>
           </div>
         )}
       </DetailModal>

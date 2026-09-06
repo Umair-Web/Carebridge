@@ -27,7 +27,7 @@
  */
 
 const DEFAULT_DEDUCTION_PCT = 20; // facility platform cut (legacy fallback)
-const DEFAULT_COMMISSION_PCT = 60; // consultant share of platform cut (legacy fallback)
+const DEFAULT_COMMISSION_PCT = 0; // consultant share of platform cut (legacy fallback)
 
 /** Clamp a percentage to [0, 100]; non-numeric -> 0. */
 const clampPct = (n) => Math.min(100, Math.max(0, Number(n) || 0));
@@ -138,7 +138,7 @@ const computeHospitalSplit = ({ billPaisa, consultant, hospital, settings }) => 
   if (!isAdditive(consultant)) {
     // ── LEGACY (nested) — byte-for-byte the original billingService math ──
     const deductionPercentage = (hospital && hospital.deductionPercentage) || (settings?.defaultHospitalDeductionPercentage ?? DEFAULT_DEDUCTION_PCT);
-    const commissionPercentage = (consultant && consultant.commissionPercentage) || (settings?.defaultConsultantCommissionPercentage ?? DEFAULT_COMMISSION_PCT);
+    const commissionPercentage = consultant?.commissionPercentage ?? settings?.defaultConsultantCommissionPercentage ?? DEFAULT_COMMISSION_PCT;
     const platformCutPaisa = Math.round(bill * (deductionPercentage / 100));
     const doctorCommissionPaisa = Math.round(platformCutPaisa * (commissionPercentage / 100));
 
@@ -221,7 +221,7 @@ const computeLabSplit = ({ tests, discountPercentage, consultant, lab, settings 
   if (!isAdditive(consultant)) {
     // ── LEGACY (nested) — byte-for-byte the original labBillingService math ──
     const deductionPercentage = (lab && lab.deductionPercentage) || (settings?.defaultLabDeductionPercentage ?? DEFAULT_DEDUCTION_PCT);
-    const commissionPercentage = (consultant && consultant.commissionPercentage) || (settings?.defaultLabCommissionPercentage ?? DEFAULT_COMMISSION_PCT);
+    const commissionPercentage = consultant?.commissionPercentage ?? settings?.defaultLabCommissionPercentage ?? DEFAULT_COMMISSION_PCT;
     const platformCutPaisa = Math.round(billTotal * (deductionPercentage / 100));
     const doctorCommissionPaisa = Math.round(platformCutPaisa * (commissionPercentage / 100));
 

@@ -10,6 +10,10 @@ const {
   addDoctor,
   updateDoctor,
   deleteDoctor,
+  verifyDoctorProfileAccess,
+  changeDoctorProfileAccessPassword,
+  changeDoctorPassword,
+  toggleDoctorAvailability,
 } = require('../controllers/hospitalController');
 const admissionController = require('../controllers/admissionController');
 const teamController = require('../controllers/teamController');
@@ -33,6 +37,11 @@ router.patch('/departments', require('../controllers/hospitalController').update
 
 router.get('/doctors', listDoctors);
 router.post('/doctors', addDoctor);
+router.post('/doctors/verify-access', verifyDoctorProfileAccess);
+router.post('/doctors/:id/verify-access', verifyDoctorProfileAccess);
+router.patch('/doctors/access-password', changeDoctorProfileAccessPassword);
+router.patch('/doctors/:id/password', changeDoctorPassword);
+router.patch('/doctors/:id/availability', toggleDoctorAvailability);
 router.patch('/doctors/:id', updateDoctor);
 router.delete('/doctors/:id', deleteDoctor);
 

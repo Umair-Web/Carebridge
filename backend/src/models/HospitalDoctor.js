@@ -11,6 +11,8 @@ const HospitalDoctorSchema = new mongoose.Schema(
     consultationFee: { type: Number }, // in paisa
     phone: { type: String },
     email: { type: String },
+    /** Optional doctor credential (not portal login). Default on create: 123456. */
+    passwordHash: { type: String, select: false },
   },
   { timestamps: true }
 );

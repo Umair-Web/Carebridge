@@ -726,10 +726,96 @@ exports.changeReferralDetailsPassword = async (req, res) => {
       entityModel: 'Referral',
     });
 
-    res.json({ success: true, message: 'Patient details password updated' });
+    res.json({ success: true, message: 'Referral access password updated' });
   } catch (error) {
     console.error('changeReferralDetailsPassword error:', error);
     res.status(500).json({ success: false, message: 'Failed to change password' });
+  }
+};
+
+/** Admin: email a reset link for this referral's details-access password. */
+exports.forgotReferralDetailsPassword = async (req, res) => {
+  try {
+    const admin = await User.findById(req.user.id).select('name email role');
+    if (!admin || admin.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin only' });
+    }
+    if (!admin.email) {
+      return res.status(400).json({ success: false, message: 'Admin account has no email on file' });
+    }
+
+    const referral = await Referral.findById(req.params.id).select('referralCode');
+    if (!referral) {
+      return res.status(404).json({ success: false, message: 'Referral not found' });
+    }
+
+    const resetToken = jwt.sign(
+      {
+        purpose: 'admin_referral_details_password_reset',
+        referralId: String(referral._id),
+        adminUserId: String(admin._id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const { sendAdminReferralAccessResetEmail } = require('../utils/emailService');
+    const sent = await sendAdminReferralAccessResetEmail(admin, resetToken, referral.referralCode);
+    if (sent && sent.success === false) {
+      return res.status(500).json({
+        success: false,
+        message: sent.error || 'Failed to send reset email',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Reset link sent to ${admin.email}`,
+    });
+  } catch (error) {
+    console.error('forgotReferralDetailsPassword error:', error);
+    res.status(500).json({ success: false, message: 'Failed to send reset email' });
+  }
+};
+
+/** Set a new referral details-access password using the emailed reset token. */
+exports.resetReferralDetailsPassword = async (req, res) => {
+  try {
+    const token = String(req.body.token || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Reset token is required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(403).json({ success: false, message: 'Reset link is invalid or expired' });
+    }
+    if (decoded.purpose !== 'admin_referral_details_password_reset' || !decoded.referralId) {
+      return res.status(403).json({ success: false, message: 'Invalid reset token' });
+    }
+
+    const referral = await Referral.findById(decoded.referralId);
+    if (!referral) {
+      return res.status(404).json({ success: false, message: 'Referral not found' });
+    }
+
+    referral.detailsPasswordHash = await bcrypt.hash(newPassword, 12);
+    await referral.save();
+
+    res.json({
+      success: true,
+      message: 'Referral access password updated. You can unlock details now.',
+      referralCode: referral.referralCode,
+    });
+  } catch (error) {
+    console.error('resetReferralDetailsPassword error:', error);
+    res.status(500).json({ success: false, message: 'Failed to reset access password' });
   }
 };
 

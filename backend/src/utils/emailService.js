@@ -9,6 +9,14 @@ const {
   resetPasswordEmailHtml,
   verificationEmailText,
   resetPasswordEmailText,
+  adminLabAccessResetEmailHtml,
+  adminLabAccessResetEmailText,
+  adminReferralAccessResetEmailHtml,
+  adminReferralAccessResetEmailText,
+  adminConsultantAccessResetEmailHtml,
+  adminConsultantAccessResetEmailText,
+  adminHospitalAccessResetEmailHtml,
+  adminHospitalAccessResetEmailText,
   buildNotificationEmail,
   buildNotificationEmailText,
   notificationEmailSubject,
@@ -168,6 +176,46 @@ const sendResetPasswordEmail = async (user, token) => {
   });
 };
 
+const sendAdminLabAccessResetEmail = async (user, token) => {
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-lab-access?token=${token}`;
+  return sendEmail({
+    to: user.email,
+    subject: 'Reset laboratory access password — CareBridge Health',
+    html: adminLabAccessResetEmailHtml(user, resetUrl),
+    text: adminLabAccessResetEmailText(user, resetUrl),
+  });
+};
+
+const sendAdminReferralAccessResetEmail = async (user, token, referralCode) => {
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-referral-access?token=${encodeURIComponent(token)}`;
+  return sendEmail({
+    to: user.email,
+    subject: `Reset referral access password${referralCode ? ` (${referralCode})` : ''} — CareBridge Health`,
+    html: adminReferralAccessResetEmailHtml(user, resetUrl, referralCode),
+    text: adminReferralAccessResetEmailText(user, resetUrl, referralCode),
+  });
+};
+
+const sendAdminConsultantAccessResetEmail = async (user, token) => {
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-consultant-access?token=${encodeURIComponent(token)}`;
+  return sendEmail({
+    to: user.email,
+    subject: 'Reset consultant access password — CareBridge Health',
+    html: adminConsultantAccessResetEmailHtml(user, resetUrl),
+    text: adminConsultantAccessResetEmailText(user, resetUrl),
+  });
+};
+
+const sendAdminHospitalAccessResetEmail = async (user, token) => {
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-hospital-access?token=${encodeURIComponent(token)}`;
+  return sendEmail({
+    to: user.email,
+    subject: 'Reset hospital access password — CareBridge Health',
+    html: adminHospitalAccessResetEmailHtml(user, resetUrl),
+    text: adminHospitalAccessResetEmailText(user, resetUrl),
+  });
+};
+
 /** Formatted email for notificationService alert types */
 const sendNotificationEmail = async (type, role, data, message) => {
   if (!data?.email) return { success: false, error: 'Missing email' };
@@ -194,6 +242,10 @@ module.exports = {
   sendVerificationEmail,
   sendEmailOtp,
   sendResetPasswordEmail,
+  sendAdminLabAccessResetEmail,
+  sendAdminReferralAccessResetEmail,
+  sendAdminConsultantAccessResetEmail,
+  sendAdminHospitalAccessResetEmail,
   sendNotificationEmail,
   sendActionEmail,
   useResend,

@@ -4,10 +4,217 @@ const LabReferral = require('../models/LabReferral');
 const LabPayout = require('../models/LabPayout');
 const Consultant = require('../models/Consultant');
 const User = require('../models/User');
+const PlatformSettings = require('../models/PlatformSettings');
 const { logAction } = require('../utils/logger');
 const { ageFromDob } = require('../utils/age');
 const notificationService = require('../services/notificationService');
 const { labDetailsViewAccessOf } = require('../utils/labReferralDetailsAccess');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+const DEFAULT_ADMIN_LAB_ACCESS_PASSWORD = '123456';
+
+async function ensureAdminLabAccessPassword() {
+  let settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
+  if (!settings) {
+    settings = await PlatformSettings.create({});
+  }
+  if (!settings.adminLabProfileAccessPasswordHash) {
+    settings.adminLabProfileAccessPasswordHash = await bcrypt.hash(DEFAULT_ADMIN_LAB_ACCESS_PASSWORD, 10);
+    await settings.save();
+  }
+  return settings;
+}
+
+/** Verify admin lab-access password without a specific lab (e.g. lab referrals list). */
+exports.verifyLabAccessPassword = async (req, res) => {
+  try {
+    const password = String(req.body.password || '');
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    const settings = await ensureAdminLabAccessPassword();
+    const ok = await bcrypt.compare(password, settings.adminLabProfileAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Incorrect access password' });
+    }
+
+    const unlockToken = jwt.sign(
+      {
+        purpose: 'admin_lab_profile_unlock',
+        adminUserId: String(req.user.id),
+        scope: 'lab_referrals',
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Access granted',
+      data: { unlockToken, expiresInMinutes: 30 },
+    });
+  } catch (error) {
+    console.error('[ADMIN_VERIFY_LAB_ACCESS_GENERIC]', error);
+    res.status(500).json({ success: false, message: 'Failed to verify access password' });
+  }
+};
+
+/** Verify admin lab-profile access password (not the laboratory login). */
+exports.verifyLabProfileAccess = async (req, res) => {
+  try {
+    const password = String(req.body.password || '');
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    const lab = await Laboratory.findById(req.params.id);
+    if (!lab) {
+      return res.status(404).json({ success: false, message: 'Laboratory not found' });
+    }
+
+    const settings = await ensureAdminLabAccessPassword();
+    const ok = await bcrypt.compare(password, settings.adminLabProfileAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Incorrect access password' });
+    }
+
+    const unlockToken = jwt.sign(
+      {
+        purpose: 'admin_lab_profile_unlock',
+        laboratoryId: String(lab._id),
+        adminUserId: String(req.user.id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Access granted',
+      data: { unlockToken, expiresInMinutes: 30 },
+    });
+  } catch (error) {
+    console.error('[ADMIN_VERIFY_LAB_ACCESS]', error);
+    res.status(500).json({ success: false, message: 'Failed to verify access password' });
+  }
+};
+
+/** Change the admin lab-profile access password (requires unlock token). */
+exports.changeLabProfileAccessPassword = async (req, res) => {
+  try {
+    const token = req.headers['x-lab-profile-unlock'];
+    if (!token) {
+      return res.status(403).json({ success: false, message: 'Unlock required' });
+    }
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(403).json({ success: false, message: 'Unlock expired or invalid' });
+    }
+    if (decoded.purpose !== 'admin_lab_profile_unlock') {
+      return res.status(403).json({ success: false, message: 'Invalid unlock token' });
+    }
+
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    const settings = await ensureAdminLabAccessPassword();
+    const ok = await bcrypt.compare(currentPassword, settings.adminLabProfileAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Current access password is incorrect' });
+    }
+
+    settings.adminLabProfileAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+    res.json({ success: true, message: 'Lab profile access password updated' });
+  } catch (error) {
+    console.error('[ADMIN_CHANGE_LAB_ACCESS]', error);
+    res.status(500).json({ success: false, message: 'Failed to update access password' });
+  }
+};
+
+/** Email the logged-in admin a link to reset lab-access password. */
+exports.forgotLabProfileAccessPassword = async (req, res) => {
+  try {
+    const admin = await User.findById(req.user.id).select('name email role');
+    if (!admin || admin.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin only' });
+    }
+    if (!admin.email) {
+      return res.status(400).json({ success: false, message: 'Admin account has no email on file' });
+    }
+
+    await ensureAdminLabAccessPassword();
+
+    const resetToken = jwt.sign(
+      {
+        purpose: 'admin_lab_access_password_reset',
+        adminUserId: String(admin._id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const { sendAdminLabAccessResetEmail } = require('../utils/emailService');
+    const sent = await sendAdminLabAccessResetEmail(admin, resetToken);
+    if (sent && sent.success === false) {
+      return res.status(500).json({
+        success: false,
+        message: sent.error || 'Failed to send reset email',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Reset link sent to ${admin.email}`,
+    });
+  } catch (error) {
+    console.error('[ADMIN_FORGOT_LAB_ACCESS]', error);
+    res.status(500).json({ success: false, message: 'Failed to send reset email' });
+  }
+};
+
+/** Set a new lab-access password using the emailed reset token (no unlock needed). */
+exports.resetLabProfileAccessPassword = async (req, res) => {
+  try {
+    const token = String(req.body.token || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Reset token is required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(403).json({ success: false, message: 'Reset link is invalid or expired' });
+    }
+    if (decoded.purpose !== 'admin_lab_access_password_reset' || !decoded.adminUserId) {
+      return res.status(403).json({ success: false, message: 'Invalid reset token' });
+    }
+
+    const settings = await ensureAdminLabAccessPassword();
+    settings.adminLabProfileAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    res.json({ success: true, message: 'Laboratory access password updated. You can unlock lab profiles now.' });
+  } catch (error) {
+    console.error('[ADMIN_RESET_LAB_ACCESS]', error);
+    res.status(500).json({ success: false, message: 'Failed to reset access password' });
+  }
+};
 
 /** List labs, optionally filtered by owner-user status (?status=pending|active|suspended). */
 exports.listLabs = async (req, res) => {

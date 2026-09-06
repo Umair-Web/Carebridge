@@ -14,6 +14,39 @@ const { ageFromDob } = require('../utils/age');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
+const DEFAULT_ADMIN_CONSULTANT_ACCESS_PASSWORD = '123456';
+const DEFAULT_ADMIN_HOSPITAL_ACCESS_PASSWORD = '123456';
+
+async function ensureAdminConsultantAccessPassword() {
+  let settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
+  if (!settings) {
+    settings = await PlatformSettings.create({});
+  }
+  if (!settings.adminConsultantProfileAccessPasswordHash) {
+    settings.adminConsultantProfileAccessPasswordHash = await bcrypt.hash(
+      DEFAULT_ADMIN_CONSULTANT_ACCESS_PASSWORD,
+      10
+    );
+    await settings.save();
+  }
+  return settings;
+}
+
+async function ensureAdminHospitalAccessPassword() {
+  let settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
+  if (!settings) {
+    settings = await PlatformSettings.create({});
+  }
+  if (!settings.adminHospitalProfileAccessPasswordHash) {
+    settings.adminHospitalProfileAccessPasswordHash = await bcrypt.hash(
+      DEFAULT_ADMIN_HOSPITAL_ACCESS_PASSWORD,
+      10
+    );
+    await settings.save();
+  }
+  return settings;
+}
+
 /** Resolve consultant User by userId or consultantId. */
 async function resolveConsultantUser(id) {
   let user = await User.findById(id);
@@ -30,7 +63,7 @@ async function resolveConsultantUser(id) {
 function assertConsultantProfileUnlock(req, userId) {
   const token = req.headers['x-profile-unlock'];
   if (!token) {
-    const err = new Error('Consultant password required to view this profile');
+    const err = new Error('Detail access password required to view this profile');
     err.statusCode = 403;
     throw err;
   }
@@ -65,7 +98,7 @@ async function resolveHospitalUser(id) {
 function assertHospitalProfileUnlock(req, userId) {
   const token = req.headers['x-profile-unlock'];
   if (!token) {
-    const err = new Error('Hospital password required to view this profile');
+    const err = new Error('Detail access password required to view this profile');
     err.statusCode = 403;
     throw err;
   }
@@ -674,7 +707,7 @@ exports.getConsultantProfile = async (req, res) => {
     const withdrawnAmountPaisa = payouts.filter(p => p.status === 'paid').reduce((acc, curr) => acc + curr.amountPaisa, 0);
     
     const settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
-    const commPct = consultant.commissionPercentage ?? settings?.defaultConsultantCommissionPercentage ?? 60;
+    const commPct = consultant.commissionPercentage ?? settings?.defaultConsultantCommissionPercentage ?? 0;
     const commissionVal = `${commPct}% of platform's referral cut (Dynamic split)`;
 
     // Activity Logs
@@ -758,7 +791,10 @@ exports.adminChangePassword = async (req, res) => {
   }
 };
 
-/** Verify consultant login password and issue a short-lived profile unlock token. */
+/**
+ * Verify admin consultant-detail access password (not the consultant portal login)
+ * and issue a short-lived profile unlock token.
+ */
 exports.verifyConsultantPassword = async (req, res) => {
   try {
     const { password } = req.body;
@@ -771,16 +807,18 @@ exports.verifyConsultantPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Consultant not found' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    const settings = await ensureAdminConsultantAccessPassword();
+    const isMatch = await bcrypt.compare(password, settings.adminConsultantProfileAccessPasswordHash);
     if (!isMatch) {
       // Use 403 (not 401) so the frontend auth interceptor does not treat this as a session expiry.
-      return res.status(403).json({ success: false, message: 'Incorrect consultant password' });
+      return res.status(403).json({ success: false, message: 'Incorrect detail access password' });
     }
 
     const unlockToken = jwt.sign(
       {
         purpose: 'consultant_profile_unlock',
         consultantUserId: user._id.toString(),
+        adminUserId: String(req.user.id),
       },
       process.env.JWT_SECRET,
       { expiresIn: '15m' }
@@ -788,7 +826,7 @@ exports.verifyConsultantPassword = async (req, res) => {
 
     await logAction({
       req,
-      action: 'ADMIN_VERIFY_CONSULTANT_PASSWORD',
+      action: 'ADMIN_VERIFY_CONSULTANT_DETAIL_ACCESS',
       entityId: user._id,
       entityModel: 'User',
       details: { email: user.email },
@@ -796,7 +834,7 @@ exports.verifyConsultantPassword = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Password verified',
+      message: 'Access granted',
       unlockToken,
     });
   } catch (e) {
@@ -805,7 +843,137 @@ exports.verifyConsultantPassword = async (req, res) => {
   }
 };
 
-/** Verify hospital login password and issue a short-lived profile unlock token. */
+/** Change the admin consultant-detail access password (requires unlock token). */
+exports.changeConsultantProfileAccessPassword = async (req, res) => {
+  try {
+    const token = req.headers['x-profile-unlock'];
+    if (!token) {
+      return res.status(403).json({ success: false, message: 'Unlock required' });
+    }
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(403).json({ success: false, message: 'Unlock expired or invalid' });
+    }
+    if (decoded.purpose !== 'consultant_profile_unlock') {
+      return res.status(403).json({ success: false, message: 'Invalid unlock token' });
+    }
+
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    const settings = await ensureAdminConsultantAccessPassword();
+    const ok = await bcrypt.compare(currentPassword, settings.adminConsultantProfileAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Current access password is incorrect' });
+    }
+
+    settings.adminConsultantProfileAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    await logAction({
+      req,
+      action: 'ADMIN_CHANGE_CONSULTANT_DETAIL_ACCESS_PASSWORD',
+      entityId: req.user.id,
+      entityModel: 'User',
+      details: {},
+    });
+
+    res.json({ success: true, message: 'Consultant detail access password updated' });
+  } catch (e) {
+    console.error('changeConsultantProfileAccessPassword error:', e);
+    res.status(500).json({ success: false, message: 'Failed to update access password' });
+  }
+};
+
+/** Email the logged-in admin a link to reset consultant detail-access password. */
+exports.forgotConsultantProfileAccessPassword = async (req, res) => {
+  try {
+    const admin = await User.findById(req.user.id).select('name email role');
+    if (!admin || admin.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin only' });
+    }
+    if (!admin.email) {
+      return res.status(400).json({ success: false, message: 'Admin account has no email on file' });
+    }
+
+    await ensureAdminConsultantAccessPassword();
+
+    const resetToken = jwt.sign(
+      {
+        purpose: 'admin_consultant_access_password_reset',
+        adminUserId: String(admin._id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const { sendAdminConsultantAccessResetEmail } = require('../utils/emailService');
+    const sent = await sendAdminConsultantAccessResetEmail(admin, resetToken);
+    if (sent && sent.success === false) {
+      return res.status(500).json({
+        success: false,
+        message: sent.error || 'Failed to send reset email',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Reset link sent to ${admin.email}`,
+    });
+  } catch (e) {
+    console.error('forgotConsultantProfileAccessPassword error:', e);
+    res.status(500).json({ success: false, message: 'Failed to send reset email' });
+  }
+};
+
+/** Set a new consultant detail-access password using the emailed reset token. */
+exports.resetConsultantProfileAccessPassword = async (req, res) => {
+  try {
+    const token = String(req.body.token || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Reset token is required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(403).json({ success: false, message: 'Reset link is invalid or expired' });
+    }
+    if (decoded.purpose !== 'admin_consultant_access_password_reset' || !decoded.adminUserId) {
+      return res.status(403).json({ success: false, message: 'Invalid reset token' });
+    }
+
+    const settings = await ensureAdminConsultantAccessPassword();
+    settings.adminConsultantProfileAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    res.json({
+      success: true,
+      message: 'Consultant detail access password updated. You can unlock consultant profiles now.',
+    });
+  } catch (e) {
+    console.error('resetConsultantProfileAccessPassword error:', e);
+    res.status(500).json({ success: false, message: 'Failed to reset access password' });
+  }
+};
+
+/**
+ * Verify admin hospital-detail access password (not the hospital portal login)
+ * and issue a short-lived profile unlock token.
+ */
 exports.verifyHospitalPassword = async (req, res) => {
   try {
     const { password } = req.body;
@@ -818,16 +986,18 @@ exports.verifyHospitalPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Hospital not found' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    const settings = await ensureAdminHospitalAccessPassword();
+    const isMatch = await bcrypt.compare(password, settings.adminHospitalProfileAccessPasswordHash);
     if (!isMatch) {
       // Use 403 (not 401) so the frontend auth interceptor does not treat this as a session expiry.
-      return res.status(403).json({ success: false, message: 'Incorrect hospital password' });
+      return res.status(403).json({ success: false, message: 'Incorrect detail access password' });
     }
 
     const unlockToken = jwt.sign(
       {
         purpose: 'hospital_profile_unlock',
         hospitalUserId: user._id.toString(),
+        adminUserId: String(req.user.id),
       },
       process.env.JWT_SECRET,
       { expiresIn: '15m' }
@@ -835,7 +1005,7 @@ exports.verifyHospitalPassword = async (req, res) => {
 
     await logAction({
       req,
-      action: 'ADMIN_VERIFY_HOSPITAL_PASSWORD',
+      action: 'ADMIN_VERIFY_HOSPITAL_DETAIL_ACCESS',
       entityId: user._id,
       entityModel: 'User',
       details: { email: user.email },
@@ -843,12 +1013,139 @@ exports.verifyHospitalPassword = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Password verified',
+      message: 'Access granted',
       unlockToken,
     });
   } catch (e) {
     console.error('verifyHospitalPassword error:', e);
     res.status(500).json({ success: false, message: 'Failed to verify password' });
+  }
+};
+
+/** Change the admin hospital-detail access password (requires unlock token). */
+exports.changeHospitalProfileAccessPassword = async (req, res) => {
+  try {
+    const token = req.headers['x-profile-unlock'];
+    if (!token) {
+      return res.status(403).json({ success: false, message: 'Unlock required' });
+    }
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(403).json({ success: false, message: 'Unlock expired or invalid' });
+    }
+    if (decoded.purpose !== 'hospital_profile_unlock') {
+      return res.status(403).json({ success: false, message: 'Invalid unlock token' });
+    }
+
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    const settings = await ensureAdminHospitalAccessPassword();
+    const ok = await bcrypt.compare(currentPassword, settings.adminHospitalProfileAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Current access password is incorrect' });
+    }
+
+    settings.adminHospitalProfileAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    await logAction({
+      req,
+      action: 'ADMIN_CHANGE_HOSPITAL_DETAIL_ACCESS_PASSWORD',
+      entityId: req.user.id,
+      entityModel: 'User',
+      details: {},
+    });
+
+    res.json({ success: true, message: 'Hospital detail access password updated' });
+  } catch (e) {
+    console.error('changeHospitalProfileAccessPassword error:', e);
+    res.status(500).json({ success: false, message: 'Failed to update access password' });
+  }
+};
+
+/** Email the logged-in admin a link to reset hospital detail-access password. */
+exports.forgotHospitalProfileAccessPassword = async (req, res) => {
+  try {
+    const admin = await User.findById(req.user.id).select('name email role');
+    if (!admin || admin.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin only' });
+    }
+    if (!admin.email) {
+      return res.status(400).json({ success: false, message: 'Admin account has no email on file' });
+    }
+
+    await ensureAdminHospitalAccessPassword();
+
+    const resetToken = jwt.sign(
+      {
+        purpose: 'admin_hospital_access_password_reset',
+        adminUserId: String(admin._id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const { sendAdminHospitalAccessResetEmail } = require('../utils/emailService');
+    const sent = await sendAdminHospitalAccessResetEmail(admin, resetToken);
+    if (sent && sent.success === false) {
+      return res.status(500).json({
+        success: false,
+        message: sent.error || 'Failed to send reset email',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Reset link sent to ${admin.email}`,
+    });
+  } catch (e) {
+    console.error('forgotHospitalProfileAccessPassword error:', e);
+    res.status(500).json({ success: false, message: 'Failed to send reset email' });
+  }
+};
+
+/** Set a new hospital detail-access password using the emailed reset token. */
+exports.resetHospitalProfileAccessPassword = async (req, res) => {
+  try {
+    const token = String(req.body.token || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Reset token is required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(403).json({ success: false, message: 'Reset link is invalid or expired' });
+    }
+    if (decoded.purpose !== 'admin_hospital_access_password_reset' || !decoded.adminUserId) {
+      return res.status(403).json({ success: false, message: 'Invalid reset token' });
+    }
+
+    const settings = await ensureAdminHospitalAccessPassword();
+    settings.adminHospitalProfileAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    res.json({
+      success: true,
+      message: 'Hospital detail access password updated. You can unlock hospital profiles now.',
+    });
+  } catch (e) {
+    console.error('resetHospitalProfileAccessPassword error:', e);
+    res.status(500).json({ success: false, message: 'Failed to reset access password' });
   }
 };
 
@@ -1609,6 +1906,10 @@ exports.adminUpdateConsultant = async (req, res) => {
     // Clamp the lab discount cap to a sane [0,100] range.
     if (req.body.maxLabDiscountPercentage !== undefined) {
       consultant.maxLabDiscountPercentage = Math.max(0, Math.min(100, Number(req.body.maxLabDiscountPercentage) || 0));
+    }
+    // Doctor commission is platform-fixed at 0 (not editable from profile edit).
+    if (req.body.commissionPercentage !== undefined) {
+      consultant.commissionPercentage = 0;
     }
     if (req.body.payoutAccount) {
       consultant.payoutAccount = { ...consultant.payoutAccount, ...req.body.payoutAccount };
