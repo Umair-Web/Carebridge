@@ -24,7 +24,9 @@ const escapeHtml = (value) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
-const frontendBase = () => process.env.FRONTEND_URL || 'http://localhost:5173';
+const { getFrontendBase } = require('./frontendUrl');
+
+const frontendBase = (req) => getFrontendBase(req);
 
 const dashboardUrl = (role) => {
   const base = frontendBase();

@@ -78,31 +78,21 @@ const AdminOverview = () => {
     return <Loader message="Syncing real-time system metrics..." />;
   }
 
-  // Aggregate Bed Inventory across all hospitals.
-  // bedsInventory is an array of { ward, totalBeds, occupiedBeds, availableBeds }.
-  const WARD_MAP = {
-    icu: 'ICU', nicu: 'NICU', picu: 'PICU', hdu: 'HDU', general: 'General', private: 'Private',
-  };
-  const aggregateBeds = {
-    icu: { total: 0, occupied: 0 },
-    nicu: { total: 0, occupied: 0 },
-    picu: { total: 0, occupied: 0 },
-    hdu: { total: 0, occupied: 0 },
-    general: { total: 0, occupied: 0 },
-    private: { total: 0, occupied: 0 },
-  };
-
-  bedsData.forEach(h => {
-    (h.bedsInventory || []).forEach(b => {
-      const key = Object.keys(WARD_MAP).find(
-        k => WARD_MAP[k].toLowerCase() === (b.ward || '').toLowerCase()
-      );
-      if (key) {
-        aggregateBeds[key].total += Number(b.totalBeds || 0);
-        aggregateBeds[key].occupied += Number(b.occupiedBeds || 0);
-      }
+  const aggregateMap = {};
+  bedsData.forEach((h) => {
+    const inactive = new Set(h.inactiveDepartments || []);
+    const active = new Set((h.departments || []).filter((d) => !inactive.has(d)));
+    (h.bedsInventory || []).forEach((b) => {
+      if (active.size > 0 && !active.has(b.ward)) return;
+      const key = b.ward || 'Unknown';
+      if (!aggregateMap[key]) aggregateMap[key] = { total: 0, occupied: 0 };
+      aggregateMap[key].total += Number(b.totalBeds || 0);
+      aggregateMap[key].occupied += Number(b.occupiedBeds || 0);
     });
   });
+  const aggregateBeds = Object.entries(aggregateMap)
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 12);
 
   const chartData = (data?.topHospitals || []).map((h) => ({
     name: h.name?.length > 14 ? `${h.name.slice(0, 12)}…` : h.name,
@@ -282,7 +272,7 @@ const AdminOverview = () => {
               <HeartPulse className="w-5 h-5 text-red-500 animate-pulse" />
               Live System-Wide Care Capacities
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Aggregated critical and emergency bed status across all hospitals.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Aggregated bed status by department across all hospitals.</p>
           </div>
           <Link to="/admin/beds" className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1 hover:underline">
             Manage Hospital Beds &rarr;
@@ -290,8 +280,10 @@ const AdminOverview = () => {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-6">
-          {Object.keys(aggregateBeds).map((type) => {
-            const { total, occupied } = aggregateBeds[type];
+          {aggregateBeds.length === 0 ? (
+            <p className="col-span-full text-sm text-slate-500">No department bed inventory reported yet.</p>
+          ) : (
+            aggregateBeds.map(([type, { total, occupied }]) => {
             const available = total - occupied;
             const percent = total > 0 ? Math.round((occupied / total) * 100) : 0;
             return (
@@ -320,7 +312,8 @@ const AdminOverview = () => {
                 </div>
               </div>
             );
-          })}
+          })
+          )}
         </div>
       </div>
 

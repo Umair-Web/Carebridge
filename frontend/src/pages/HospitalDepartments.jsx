@@ -25,6 +25,7 @@ const HospitalDepartments = () => {
     onSuccess: () => {
       toast.success('Departments updated successfully');
       queryClient.invalidateQueries({ queryKey: ['hospital-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['beds'] });
     },
     onError: () => {
       toast.error('Failed to update departments');
@@ -87,7 +88,7 @@ const HospitalDepartments = () => {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">Manage Departments</h1>
           <p className="text-slate-500 mt-1 text-sm">
-            Configure specialties and turn departments off when beds or capacity are unavailable. Only active departments appear in consultant referrals.
+            Configure specialties and turn departments off when beds or capacity are unavailable. Only active departments appear in consultant referrals and on the bed inventory page.
           </p>
         </div>
       </div>

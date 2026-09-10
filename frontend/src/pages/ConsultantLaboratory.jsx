@@ -503,7 +503,7 @@ const LabEarnings = () => {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-slate-900 text-white rounded-2xl p-5">
           <Wallet className="w-6 h-6 text-sky-400 mb-2" />
           <p className="text-xs text-slate-400 font-bold uppercase">Total</p>
@@ -517,7 +517,7 @@ const LabEarnings = () => {
           <p className="text-xs text-slate-400 font-bold uppercase">Accrued (pending)</p>
           <p className="text-2xl font-black text-amber-600 dark:text-amber-400 tabular-nums">{formatPkr(earnings?.accruedPaisa || 0)}</p>
         </div>
-      </div>
+      </div> */}
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -587,7 +587,7 @@ const ConsultantLaboratory = () => {
         </div>
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-50">Laboratory</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Refer patients for tests, track reports, and view your lab commissions.</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Refer patients for tests and track reports.</p>
         </div>
       </div>
 

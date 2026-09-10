@@ -20,8 +20,8 @@ const AdminReferrals = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [deleteConfirmStep, setDeleteConfirmStep] = useState(0); // 0: none, 1: first click, 2: typing name
   const [changingDetailsPassword, setChangingDetailsPassword] = useState(false);
+  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
   const [accessNewPassword, setAccessNewPassword] = useState('');
-  const [accessConfirmPassword, setAccessConfirmPassword] = useState('');
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -88,8 +88,8 @@ const AdminReferrals = () => {
     setIsEditing(false);
     setDeleteConfirmStep(0);
     setChangingDetailsPassword(false);
+    setAccessCurrentPassword('');
     setAccessNewPassword('');
-    setAccessConfirmPassword('');
   };
 
   const updateMutation = useMutation({
@@ -146,23 +146,24 @@ const AdminReferrals = () => {
   const handleChangeDetailsPassword = async (e) => {
     e?.preventDefault?.();
     if (!selectedRef?._id) return;
-    if (!accessNewPassword || accessNewPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (!accessCurrentPassword || !accessNewPassword) {
+      toast.error('Enter current and new access passwords');
       return;
     }
-    if (accessNewPassword !== accessConfirmPassword) {
-      toast.error('Passwords do not match');
+    if (accessNewPassword.length < 6) {
+      toast.error('New password must be at least 6 characters');
       return;
     }
     setChangingDetailsPassword(true);
     try {
       const res = await api.post(`/admin/referrals/${selectedRef._id}/change-details-password`, {
-        password: accessNewPassword,
+        currentPassword: accessCurrentPassword,
+        newPassword: accessNewPassword,
       });
       if (res.data.success) {
         toast.success(res.data.message || 'Referral access password updated');
+        setAccessCurrentPassword('');
         setAccessNewPassword('');
-        setAccessConfirmPassword('');
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to change password');
@@ -538,16 +539,16 @@ const AdminReferrals = () => {
                   </p>
                   <input
                     type="password"
-                    value={accessNewPassword}
-                    onChange={(e) => setAccessNewPassword(e.target.value)}
-                    placeholder="New access password (min 6 characters)"
+                    value={accessCurrentPassword}
+                    onChange={(e) => setAccessCurrentPassword(e.target.value)}
+                    placeholder="Current access password"
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                   />
                   <input
                     type="password"
-                    value={accessConfirmPassword}
-                    onChange={(e) => setAccessConfirmPassword(e.target.value)}
-                    placeholder="Confirm new password"
+                    value={accessNewPassword}
+                    onChange={(e) => setAccessNewPassword(e.target.value)}
+                    placeholder="New access password (min 6 characters)"
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                   />
                   <button

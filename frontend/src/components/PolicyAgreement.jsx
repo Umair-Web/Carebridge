@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ShieldCheck, Maximize2 } from 'lucide-react';
+import sopDocument from '../assets/SOP.jpeg';
 
 /**
  * Privacy & Policy (SOP) agreement gate shown before the register button.
@@ -32,7 +33,7 @@ const PolicyAgreement = ({ agreed, onChange, accent = 'blue' }) => {
 
         <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
           <img
-            src="/SOP.jpeg"
+            src={sopDocument}
             alt="Standard Operating Procedures and Privacy Policy"
             className="w-full max-h-72 object-contain object-top bg-white"
           />
@@ -75,7 +76,7 @@ const PolicyAgreement = ({ agreed, onChange, accent = 'blue' }) => {
             >
               Close ✕
             </button>
-            <img src="/SOP.jpeg" alt="Standard Operating Procedures and Privacy Policy" className="w-full h-auto" />
+            <img src={sopDocument} alt="Standard Operating Procedures and Privacy Policy" className="w-full h-auto" />
           </div>
         </div>
       )}

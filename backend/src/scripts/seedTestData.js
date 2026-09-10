@@ -70,11 +70,8 @@ const run = async () => {
       location: { type: 'Point', coordinates: [67.0221, 24.8607] }, // Approx coordinates
       departments: ['Internal Medicine', 'Cardiology'],
       bedsInventory: [
-        { ward: 'General', totalBeds: 50, availableBeds: 20 },
-        { ward: 'Private', totalBeds: 10, availableBeds: 5 },
-        { ward: 'ICU', totalBeds: 10, availableBeds: 3 },
-        { ward: 'NICU', totalBeds: 5, availableBeds: 2 },
-        { ward: 'PICU', totalBeds: 5, availableBeds: 1 }
+        { ward: 'Internal Medicine', totalBeds: 50, availableBeds: 20, occupiedBeds: 30 },
+        { ward: 'Cardiology', totalBeds: 10, availableBeds: 3, occupiedBeds: 7 },
       ],
       ratePackages: [
         { department: 'Internal Medicine', serviceName: 'General Consultation', minPrice: 150000, maxPrice: 300000 } // Paisa
@@ -100,11 +97,9 @@ const run = async () => {
       location: { type: 'Point', coordinates: [67.0121, 24.8138] }, // Approx coordinates
       departments: ['Internal Medicine', 'Neurology', 'Orthopedics'],
       bedsInventory: [
-        { ward: 'General', totalBeds: 100, availableBeds: 40 },
-        { ward: 'Private', totalBeds: 20, availableBeds: 10 },
-        { ward: 'ICU', totalBeds: 15, availableBeds: 5 },
-        { ward: 'NICU', totalBeds: 10, availableBeds: 4 },
-        { ward: 'PICU', totalBeds: 5, availableBeds: 2 }
+        { ward: 'Internal Medicine', totalBeds: 100, availableBeds: 40, occupiedBeds: 60 },
+        { ward: 'Neurology', totalBeds: 20, availableBeds: 10, occupiedBeds: 10 },
+        { ward: 'Orthopedics', totalBeds: 15, availableBeds: 5, occupiedBeds: 10 },
       ],
       ratePackages: [
         { department: 'Internal Medicine', serviceName: 'General Consultation', minPrice: 200000, maxPrice: 400000 } // Paisa

@@ -197,7 +197,7 @@ const LabSettlements = () => {
           <div className="bg-slate-900 text-white rounded-xl p-5 space-y-3">
             <div className="flex justify-between border-b border-white/10 pb-3"><span className="text-xs text-slate-400 font-bold">Gross Billed</span><span className="text-lg font-black tabular-nums">{formatPkr(grossPaisa)}</span></div>
             <div className="flex justify-between text-xs"><span className="text-slate-400">Platform Charge</span><span className="font-bold text-slate-200 tabular-nums">{formatPkr(platformChargePaisa)}</span></div>
-            <div className="flex justify-between text-xs"><span className="text-slate-400">Doctor Commission</span><span className="font-bold text-slate-200 tabular-nums">{formatPkr(commissionPaisa)}</span></div>
+            {/* <div className="flex justify-between text-xs"><span className="text-slate-400">Doctor Commission</span><span className="font-bold text-slate-200 tabular-nums">{formatPkr(commissionPaisa)}</span></div> */}
             <div className="flex justify-between border-t border-dashed border-white/10 pt-3"><span className="text-xs text-slate-300 font-black">Total Due to Platform</span><span className="text-xl font-extrabold text-sky-400 tabular-nums">{formatPkr(platformCutPaisa)}</span></div>
           </div>
         )}

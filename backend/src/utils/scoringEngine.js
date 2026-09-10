@@ -2,7 +2,7 @@
  * Smart Scoring Engine (SRS §8) — factor maxima come from admin ScoringConfig (sum 100).
  */
 const { DEFAULTS: DEFAULT_WEIGHTS } = require('../services/scoringWeightsService');
-const { getActiveDepartmentNames, isDepartmentActive } = require('./hospitalDepartments');
+const { getActiveDepartmentNames, isDepartmentActive, findBedRow } = require('./hospitalDepartments');
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371;
@@ -26,8 +26,7 @@ const scoreHospital = (hospital, referralData, consultant, weights = DEFAULT_WEI
   let totalScore = 0;
   const breakdown = {};
 
-  const targetWard = referralData.urgency === 'emergency' ? 'ICU' : 'General';
-  const wardInventory = hospital.bedsInventory.find((b) => b.ward === targetWard);
+  const wardInventory = findBedRow(hospital.bedsInventory, referralData.department);
   if (!wardInventory || wardInventory.availableBeds <= 0 || wardInventory.totalBeds <= 0) {
     return null;
   }

@@ -730,7 +730,7 @@ const AdminHospitals = () => {
                       <table className="min-w-full text-sm">
                         <thead className="bg-slate-50 text-slate-500">
                           <tr>
-                            <th className="px-4 py-2.5 text-left font-semibold">Ward</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Department</th>
                             <th className="px-4 py-2.5 text-left font-semibold">Total</th>
                             <th className="px-4 py-2.5 text-left font-semibold">Available</th>
                           </tr>

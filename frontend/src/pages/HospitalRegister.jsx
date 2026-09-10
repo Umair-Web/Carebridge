@@ -6,8 +6,6 @@ import { ArrowLeft, Eye, EyeOff, FileCheck, MapPin } from 'lucide-react';
 import api from '../utils/api';
 import PolicyAgreement from '../components/PolicyAgreement';
 
-const WARDS = ['General', 'Private', 'ICU', 'NICU', 'PICU', 'HDU', 'Burns', 'Maternity', 'Psychiatric', 'Cardiac'];
-
 const DEPT_OPTIONS = [
   'Internal Medicine',
   'Cardiology',
@@ -23,12 +21,11 @@ const DEPT_OPTIONS = [
   'Pathology',
 ];
 
-const defaultBeds = () =>
-  WARDS.map((ward) => ({
-    ward,
-    totalBeds: ward === 'General' ? 20 : ward === 'ICU' ? 6 : 0,
-    availableBeds: ward === 'General' ? 10 : ward === 'ICU' ? 2 : 0,
-  }));
+const defaultBedRow = (dept) => ({
+  ward: dept,
+  totalBeds: 0,
+  availableBeds: 0,
+});
 
 const HospitalRegister = () => {
   const [formData, setFormData] = useState({
@@ -46,7 +43,9 @@ const HospitalRegister = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [departments, setDepartments] = useState(['Internal Medicine']);
-  const [bedsInventory, setBedsInventory] = useState(defaultBeds);
+  const [bedsInventory, setBedsInventory] = useState([
+    { ward: 'Internal Medicine', totalBeds: 20, availableBeds: 10 },
+  ]);
   const [registrationDocuments, setRegistrationDocuments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [agreedToPolicy, setAgreedToPolicy] = useState(false);
@@ -108,9 +107,17 @@ const HospitalRegister = () => {
   };
 
   const toggleDepartment = (dept) => {
-    setDepartments((prev) =>
-      prev.includes(dept) ? prev.filter((d) => d !== dept) : [...prev, dept]
-    );
+    setDepartments((prev) => {
+      const next = prev.includes(dept) ? prev.filter((d) => d !== dept) : [...prev, dept];
+      setBedsInventory((beds) => {
+        if (prev.includes(dept)) {
+          return beds.filter((row) => row.ward !== dept);
+        }
+        if (beds.some((row) => row.ward === dept)) return beds;
+        return [...beds, defaultBedRow(dept)];
+      });
+      return next;
+    });
   };
 
   const updateBed = (ward, field, raw) => {
@@ -305,33 +312,39 @@ const HospitalRegister = () => {
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
-                  <th className="text-left px-4 py-3 font-semibold">Ward</th>
+                  <th className="text-left px-4 py-3 font-semibold">Department</th>
                   <th className="text-left px-4 py-3 font-semibold">Total Beds</th>
                   <th className="text-left px-4 py-3 font-semibold">Available</th>
                 </tr>
               </thead>
               <tbody>
-                {bedsInventory.map((row) => (
-                  <tr key={row.ward} className="border-t border-slate-100">
-                    <td className="px-4 py-3 font-semibold text-slate-700">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-md text-xs font-bold ${
-                        row.ward === 'ICU' || row.ward === 'NICU' || row.ward === 'PICU'
-                          ? 'bg-red-50 text-red-600'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}>{row.ward}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <input type="number" min={0} required value={row.totalBeds}
-                        onChange={(e) => updateBed(row.ward, 'totalBeds', e.target.value)}
-                        className="w-24 px-3 py-1.5 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input type="number" min={0} required value={row.availableBeds}
-                        onChange={(e) => updateBed(row.ward, 'availableBeds', e.target.value)}
-                        className="w-24 px-3 py-1.5 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                {bedsInventory.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-6 text-sm text-slate-500 text-center">
+                      Select at least one department to enter bed counts.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  bedsInventory.map((row) => (
+                    <tr key={row.ward} className="border-t border-slate-100">
+                      <td className="px-4 py-3 font-semibold text-slate-700">
+                        <span className="inline-block px-2.5 py-0.5 rounded-md text-xs font-bold bg-slate-100 text-slate-600">
+                          {row.ward}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <input type="number" min={0} required value={row.totalBeds}
+                          onChange={(e) => updateBed(row.ward, 'totalBeds', e.target.value)}
+                          className="w-24 px-3 py-1.5 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input type="number" min={0} required value={row.availableBeds}
+                          onChange={(e) => updateBed(row.ward, 'availableBeds', e.target.value)}
+                          className="w-24 px-3 py-1.5 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

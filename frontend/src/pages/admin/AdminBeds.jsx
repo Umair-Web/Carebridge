@@ -5,7 +5,32 @@ import api from '../../utils/api';
 import Loader from '../../components/Loader';
 import toast from 'react-hot-toast';
 
-const WARDS = ['General', 'Private', 'ICU', 'NICU', 'PICU', 'HDU'];
+const getActiveDeptNames = (hospital) => {
+  const inactive = new Set(hospital.inactiveDepartments || []);
+  return (hospital.departments || []).filter((d) => !inactive.has(d));
+};
+
+const getEditableBeds = (hospital) => {
+  const depts = getActiveDeptNames(hospital);
+  const inventory = hospital.bedsInventory || [];
+  if (depts.length === 0) {
+    return inventory.map((b) => ({
+      ward: b.ward,
+      totalBeds: b.totalBeds || 0,
+      occupiedBeds: b.occupiedBeds || 0,
+      availableBeds: b.availableBeds || 0,
+    }));
+  }
+  return depts.map((name) => {
+    const row = inventory.find((b) => b.ward === name);
+    return {
+      ward: name,
+      totalBeds: row?.totalBeds || 0,
+      occupiedBeds: row?.occupiedBeds || 0,
+      availableBeds: row?.availableBeds || 0,
+    };
+  });
+};
 
 const AdminBeds = () => {
   const queryClient = useQueryClient();
@@ -55,39 +80,37 @@ const AdminBeds = () => {
     h.city?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getWardData = (inventory = [], wardName) => {
-    return inventory.find((b) => b.ward?.toLowerCase() === wardName.toLowerCase()) || { totalBeds: 0, occupiedBeds: 0, availableBeds: 0 };
-  };
-
-  const renderBedCell = (bedData) => {
-    const { totalBeds = 0, occupiedBeds = 0, availableBeds = 0 } = bedData;
+  const renderBedChip = (bedData) => {
+    const { ward, totalBeds = 0, occupiedBeds = 0, availableBeds = 0 } = bedData;
     const occupancyRate = totalBeds > 0 ? (occupiedBeds / totalBeds) * 100 : 0;
-    
+
     let colorClass = 'text-green-600';
-    if (occupancyRate > 85) colorClass = 'text-red-600';
+    if (totalBeds === 0) colorClass = 'text-slate-400';
+    else if (occupancyRate > 85) colorClass = 'text-red-600';
     else if (occupancyRate > 70) colorClass = 'text-orange-500';
 
-    if (totalBeds === 0) {
-      return <span className="text-slate-400 font-mono text-xs">Unlisted</span>;
-    }
-
     return (
-      <div className="flex flex-col">
-        <span className="font-bold text-slate-900">{occupiedBeds} / {totalBeds}</span>
-        <span className={`text-xs font-semibold ${colorClass}`}>{availableBeds} available</span>
+      <div key={ward} className="flex flex-col min-w-[7rem] px-2 py-1 rounded-lg bg-slate-50 border border-slate-100">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{ward}</span>
+        {totalBeds === 0 ? (
+          <span className="text-xs text-slate-400 font-mono">No beds</span>
+        ) : (
+          <>
+            <span className="font-bold text-slate-900 text-sm">{occupiedBeds} / {totalBeds}</span>
+            <span className={`text-[11px] font-semibold ${colorClass}`}>{availableBeds} free</span>
+          </>
+        )}
       </div>
     );
   };
 
   const handleEditClick = (hospital) => {
     setEditingHospital(hospital);
-    
     const initialForm = {};
-    WARDS.forEach(ward => {
-      const wardData = getWardData(hospital.bedsInventory, ward);
-      initialForm[ward] = {
-        totalBeds: wardData.totalBeds || 0,
-        occupiedBeds: wardData.occupiedBeds || 0
+    getEditableBeds(hospital).forEach((row) => {
+      initialForm[row.ward] = {
+        totalBeds: row.totalBeds || 0,
+        occupiedBeds: row.occupiedBeds || 0,
       };
     });
     setBedsForm(initialForm);
@@ -95,12 +118,12 @@ const AdminBeds = () => {
 
   const handleInputChange = (ward, field, value) => {
     const val = Math.max(0, parseInt(value, 10) || 0);
-    setBedsForm(prev => ({
+    setBedsForm((prev) => ({
       ...prev,
       [ward]: {
         ...prev[ward],
-        [field]: val
-      }
+        [field]: val,
+      },
     }));
   };
 
@@ -110,8 +133,8 @@ const AdminBeds = () => {
       beds: Object.entries(bedsForm).map(([ward, data]) => ({
         ward,
         totalBeds: data.totalBeds,
-        occupiedBeds: data.occupiedBeds
-      }))
+        occupiedBeds: data.occupiedBeds,
+      })),
     };
     updateBedsMutation.mutate({ hospitalId: editingHospital._id, payload });
   };
@@ -124,9 +147,9 @@ const AdminBeds = () => {
             <Bed className="w-6 h-6 text-blue-600" />
             Live Bed Management Center
           </h1>
-          <p className="text-slate-500 text-sm mt-1">Cross-hospital bed occupancy and capacity monitoring.</p>
+          <p className="text-slate-500 text-sm mt-1">Bed occupancy by hospital department.</p>
         </div>
-        
+
         <div className="relative w-full sm:w-64">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -141,38 +164,45 @@ const AdminBeds = () => {
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
+          <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600">
               <tr>
                 <th className="px-4 py-3 font-semibold">Hospital Name</th>
                 <th className="px-4 py-3 font-semibold">City</th>
-                {WARDS.map(w => (
-                  <th key={w} className="px-4 py-3 font-semibold">{w}</th>
-                ))}
+                <th className="px-4 py-3 font-semibold">Department beds</th>
                 <th className="px-4 py-3 font-semibold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredHospitals?.map((h) => (
-                <tr key={h._id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-semibold text-slate-900">{h.hospitalName}</td>
-                  <td className="px-4 py-3 text-slate-600">{h.city}</td>
-                  {WARDS.map(w => (
-                    <td key={w} className="px-4 py-3">{renderBedCell(getWardData(h.bedsInventory, w))}</td>
-                  ))}
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleEditClick(h)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" /> Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {filteredHospitals?.map((h) => {
+                const rows = getEditableBeds(h);
+                return (
+                  <tr key={h._id} className="hover:bg-slate-50 transition-colors align-top">
+                    <td className="px-4 py-3 font-semibold text-slate-900 whitespace-nowrap">{h.hospitalName}</td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{h.city}</td>
+                    <td className="px-4 py-3">
+                      {rows.length === 0 ? (
+                        <span className="text-slate-400 text-xs">No active departments</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {rows.map(renderBedChip)}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => handleEditClick(h)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" /> Edit
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredHospitals?.length === 0 && (
                 <tr>
-                  <td colSpan={WARDS.length + 3} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
                     No hospitals found matching your search.
                   </td>
                 </tr>
@@ -182,7 +212,6 @@ const AdminBeds = () => {
         </div>
       </div>
 
-      {/* Edit Beds Dialog */}
       {editingHospital && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
@@ -193,37 +222,41 @@ const AdminBeds = () => {
               </button>
             </div>
             <p className="text-xs text-slate-500 mb-6">
-              Manually set bed capacities and occupancies for <span className="font-bold text-slate-800">{editingHospital.hospitalName}</span>.
+              Set bed capacities for active departments at <span className="font-bold text-slate-800">{editingHospital.hospitalName}</span>.
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-4 text-xs font-bold text-slate-400 uppercase border-b border-slate-100 pb-2">
-                  <div>Ward / Department</div>
-                  <div>Total Beds</div>
-                  <div>Occupied Beds</div>
-                </div>
-                
-                {WARDS.map(ward => (
-                  <div key={ward} className="grid grid-cols-3 gap-4 items-center">
-                    <span className="text-sm font-semibold text-slate-800">{ward}</span>
-                    <input
-                      type="number"
-                      min="0"
-                      className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                      value={bedsForm[ward]?.totalBeds ?? 0}
-                      onChange={(e) => handleInputChange(ward, 'totalBeds', e.target.value)}
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                      value={bedsForm[ward]?.occupiedBeds ?? 0}
-                      onChange={(e) => handleInputChange(ward, 'occupiedBeds', e.target.value)}
-                    />
+              {Object.keys(bedsForm).length === 0 ? (
+                <p className="text-sm text-slate-500">This hospital has no active departments.</p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4 text-xs font-bold text-slate-400 uppercase border-b border-slate-100 pb-2">
+                    <div>Department</div>
+                    <div>Total Beds</div>
+                    <div>Occupied Beds</div>
                   </div>
-                ))}
-              </div>
+
+                  {Object.keys(bedsForm).map((ward) => (
+                    <div key={ward} className="grid grid-cols-3 gap-4 items-center">
+                      <span className="text-sm font-semibold text-slate-800">{ward}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        value={bedsForm[ward]?.totalBeds ?? 0}
+                        onChange={(e) => handleInputChange(ward, 'totalBeds', e.target.value)}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        value={bedsForm[ward]?.occupiedBeds ?? 0}
+                        onChange={(e) => handleInputChange(ward, 'occupiedBeds', e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
                 <button
@@ -235,8 +268,8 @@ const AdminBeds = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={updateBedsMutation.isPending}
-                  className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm flex items-center gap-1"
+                  disabled={updateBedsMutation.isPending || Object.keys(bedsForm).length === 0}
+                  className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm flex items-center gap-1 disabled:opacity-50"
                 >
                   <Check size={16} /> Save Changes
                 </button>

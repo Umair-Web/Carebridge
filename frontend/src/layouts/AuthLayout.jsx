@@ -5,10 +5,10 @@ import careBridgeLogoWhite from '../assets/care-bridge-logo-white.png';
 const AuthLayout = () => {
   const location = useLocation();
   const isHospitalReg = location.pathname === '/register/hospital';
-  const { effective } = useBranding();
-  const name = effective.platformName || 'CareBridge';
-  const primary = effective.primaryColor || '#2563eb';
-  const accent = effective.accentColor || '#06b6d4';
+  const { platform } = useBranding();
+  const name = platform.platformName || 'CareBridge';
+  const primary = platform.primaryColor || '#2563eb';
+  const accent = platform.accentColor || '#06b6d4';
 
   const panelGradient = {
     background: `linear-gradient(135deg, ${primary} 0%, ${primary}dd 45%, #0f172a 100%)`,

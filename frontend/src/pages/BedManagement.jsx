@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Bed, Plus, Minus, CheckCircle, AlertCircle, RefreshCcw, Pencil, X } from 'lucide-react';
 import api from '../utils/api';
 import { useBeds } from '../hooks/useReferrals';
@@ -17,17 +18,27 @@ const BedManagement = () => {
     queryClient.setQueryData(['beds'], data);
   };
 
-  const updateAvailable = async (ward, current, delta) => {
-    const newValue = Math.max(0, current + delta);
-    setUpdating(ward);
+  const updateAvailable = async (ward, delta) => {
+    const currentAvail = ward.availableBeds || 0;
+    const currentTotal = ward.totalBeds || 0;
+    if (delta < 0 && currentAvail <= 0) return;
+
+    const nextAvail = Math.max(0, currentAvail + delta);
+    const nextTotal = delta > 0 ? Math.max(currentTotal, nextAvail) : currentTotal;
+
+    setUpdating(ward.ward);
     try {
-      const res = await api.patch('/hospitals/beds', { ward, availableBeds: newValue });
+      const res = await api.patch('/hospitals/beds', {
+        ward: ward.ward,
+        totalBeds: nextTotal,
+        availableBeds: nextAvail,
+      });
       if (res.data.success) {
         refreshBeds(res.data.data);
-        toast.success(`${ward} beds updated.`);
+        toast.success(`${ward.ward} beds updated.`);
       }
-    } catch {
-      toast.error('Failed to update beds');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update beds');
     } finally {
       setUpdating(null);
     }
@@ -82,132 +93,147 @@ const BedManagement = () => {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Bed Inventory</h1>
             <p className="text-slate-500 text-sm mt-1">
-              Quick +/- for availability, or edit total and occupied beds per ward.
+              Beds for active departments only. Use +/− to add or free a bed, or edit totals.
             </p>
           </div>
         </div>
         {isFetching && <RefreshCcw className="w-5 h-5 animate-spin text-slate-300" />}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {beds.map((ward) => {
-          const isLow = ward.availableBeds < 3 && ward.availableBeds > 0;
-          const isFull = ward.availableBeds === 0;
-          const isEditing = editingWard === ward.ward;
+      {beds.length === 0 ? (
+        <div className="bg-white rounded-3xl border-2 border-dashed border-slate-200 p-10 text-center">
+          <p className="text-slate-600 font-semibold">No active departments to show beds for.</p>
+          <p className="text-slate-500 text-sm mt-2">
+            Add or turn on departments first, then set bed counts here.
+          </p>
+          <Link
+            to="/hospital/departments"
+            className="inline-flex mt-4 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700"
+          >
+            Manage departments
+          </Link>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {beds.map((ward) => {
+            const isLow = ward.availableBeds < 3 && ward.availableBeds > 0;
+            const isFull = ward.availableBeds === 0;
+            const isEditing = editingWard === ward.ward;
 
-          return (
-            <div
-              key={ward._id || ward.ward}
-              className={`relative bg-white rounded-3xl border-2 transition-all duration-300 p-6 flex flex-col justify-between min-h-[14rem]
+            return (
+              <div
+                key={ward._id || ward.ward}
+                className={`relative bg-white rounded-3xl border-2 transition-all duration-300 p-6 flex flex-col justify-between min-h-[14rem]
                 ${isFull ? 'border-red-100 bg-red-50/10' : 'border-slate-100 hover:border-blue-200 hover:shadow-xl'}`}
-            >
-              <div>
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-lg font-bold text-slate-900">{ward.ward}</h3>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => (isEditing ? setEditingWard(null) : openEdit(ward))}
-                      className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-blue-600"
-                      title="Edit totals"
-                    >
-                      {isEditing ? <X size={16} /> : <Pencil size={16} />}
-                    </button>
-                    {isFull ? (
-                      <AlertCircle className="text-red-500 w-5 h-5" />
-                    ) : (
-                      <CheckCircle className="text-emerald-500 w-5 h-5" />
-                    )}
+              >
+                <div>
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-lg font-bold text-slate-900">{ward.ward}</h3>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => (isEditing ? setEditingWard(null) : openEdit(ward))}
+                        className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+                        title="Edit totals"
+                      >
+                        {isEditing ? <X size={16} /> : <Pencil size={16} />}
+                      </button>
+                      {isFull ? (
+                        <AlertCircle className="text-red-500 w-5 h-5" />
+                      ) : (
+                        <CheckCircle className="text-emerald-500 w-5 h-5" />
+                      )}
+                    </div>
                   </div>
+
+                  {isEditing ? (
+                    <div className="space-y-3 mb-4">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Total beds</label>
+                        <input
+                          type="number"
+                          min={0}
+                          className="w-full mt-1 px-3 py-2 border rounded-xl text-sm"
+                          value={editRow.totalBeds}
+                          onChange={(e) => setEditRow({ ...editRow, totalBeds: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">Occupied</label>
+                        <input
+                          type="number"
+                          min={0}
+                          className="w-full mt-1 px-3 py-2 border rounded-xl text-sm"
+                          value={editRow.occupiedBeds}
+                          onChange={(e) => setEditRow({ ...editRow, occupiedBeds: e.target.value })}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={saveEdit}
+                        className="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-xl"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Available / Total · Occupied {ward.occupiedBeds ?? 0}
+                      </p>
+                      <div className="flex items-baseline gap-1">
+                        <span className={`text-4xl font-black tabular-nums ${isFull ? 'text-red-600' : 'text-slate-900'}`}>
+                          {ward.availableBeds}
+                        </span>
+                        <span className="text-slate-400 font-medium text-lg">/ {ward.totalBeds}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {isEditing ? (
-                  <div className="space-y-3 mb-4">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Total beds</label>
-                      <input
-                        type="number"
-                        min={0}
-                        className="w-full mt-1 px-3 py-2 border rounded-xl text-sm"
-                        value={editRow.totalBeds}
-                        onChange={(e) => setEditRow({ ...editRow, totalBeds: e.target.value })}
+                {!isEditing && (
+                  <div className="flex items-center justify-between gap-4 mt-4">
+                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-700 rounded-full ${
+                          isFull ? 'bg-red-500' : isLow ? 'bg-amber-400' : 'bg-emerald-500'
+                        }`}
+                        style={{
+                          width: `${ward.totalBeds > 0 ? (ward.availableBeds / ward.totalBeds) * 100 : 0}%`,
+                        }}
                       />
                     </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase">Occupied</label>
-                      <input
-                        type="number"
-                        min={0}
-                        className="w-full mt-1 px-3 py-2 border rounded-xl text-sm"
-                        value={editRow.occupiedBeds}
-                        onChange={(e) => setEditRow({ ...editRow, occupiedBeds: e.target.value })}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={saveEdit}
-                      className="w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-xl"
-                    >
-                      Save
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Available / Total · Occupied {ward.occupiedBeds ?? 0}
-                    </p>
-                    <div className="flex items-baseline gap-1">
-                      <span className={`text-4xl font-black tabular-nums ${isFull ? 'text-red-600' : 'text-slate-900'}`}>
-                        {ward.availableBeds}
-                      </span>
-                      <span className="text-slate-400 font-medium text-lg">/ {ward.totalBeds}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={updating === ward.ward || ward.availableBeds === 0}
+                        onClick={() => updateAvailable(ward, -1)}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-30 border border-slate-200"
+                      >
+                        <Minus size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={updating === ward.ward}
+                        onClick={() => updateAvailable(ward, 1)}
+                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-30 shadow-md"
+                      >
+                        <Plus size={18} />
+                      </button>
                     </div>
                   </div>
                 )}
+
+                {updating === ward.ward && (
+                  <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] rounded-3xl flex items-center justify-center">
+                    <RefreshCcw className="w-6 h-6 animate-spin text-blue-600" />
+                  </div>
+                )}
               </div>
-
-              {!isEditing && (
-                <div className="flex items-center justify-between gap-4 mt-4">
-                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-700 rounded-full ${
-                        isFull ? 'bg-red-500' : isLow ? 'bg-amber-400' : 'bg-emerald-500'
-                      }`}
-                      style={{
-                        width: `${ward.totalBeds > 0 ? (ward.availableBeds / ward.totalBeds) * 100 : 0}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={updating === ward.ward || ward.availableBeds === 0}
-                      onClick={() => updateAvailable(ward.ward, ward.availableBeds, -1)}
-                      className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-30 border border-slate-200"
-                    >
-                      <Minus size={18} />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={updating === ward.ward || ward.availableBeds >= ward.totalBeds}
-                      onClick={() => updateAvailable(ward.ward, ward.availableBeds, 1)}
-                      className="w-10 h-10 flex items-center justify-center rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-30 shadow-md"
-                    >
-                      <Plus size={18} />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {updating === ward.ward && (
-                <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] rounded-3xl flex items-center justify-center">
-                  <RefreshCcw className="w-6 h-6 animate-spin text-blue-600" />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

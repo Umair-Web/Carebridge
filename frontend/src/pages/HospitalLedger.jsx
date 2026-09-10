@@ -221,14 +221,14 @@ const HospitalLedger = () => {
 
               <div className="relative z-10 space-y-3 pt-2">
                 {/* Hospital Kept */}
-                <div className="flex justify-between items-center text-xs">
+                {/* <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-400">Hospital Revenue Kept ({100 - (selected.deductionPercentage || 20)}%)</span>
                   <span className="font-extrabold text-teal-400">{formatPkr((selected.totalBillPaisa || 0) - (selected.platformCutPaisa || 0))}</span>
-                </div>
+                </div> */}
 
                 {/* Total Platform Fee */}
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400">Platform Total Cut ({selected.deductionPercentage || 20}%)</span>
+                  <span className="text-slate-400">Platform  Cut ({selected.deductionPercentage || 20}%)</span>
                   <span className="font-semibold text-red-400">{formatPkr(selected.platformCutPaisa)}</span>
                 </div>
               </div>

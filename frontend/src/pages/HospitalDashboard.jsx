@@ -100,7 +100,15 @@ const HospitalDashboard = () => {
         <div className="rounded-2xl bg-white border border-slate-100 p-5 sm:p-6 shadow-sm">
           <h2 className="text-lg font-bold text-slate-900 mb-4">Bed availability</h2>
           <div className="space-y-3">
-            {stats.beds.map((ward) => (
+            {(stats.beds || []).length === 0 ? (
+              <p className="text-sm text-slate-500">
+                No beds for active departments.{' '}
+                <Link to="/hospital/departments" className="text-blue-600 font-semibold hover:underline">
+                  Manage departments
+                </Link>
+              </p>
+            ) : (
+              stats.beds.map((ward) => (
               <div key={ward.ward} className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
                 <div>
                   <p className="font-semibold text-slate-900">{ward.ward}</p>
@@ -118,7 +126,8 @@ const HospitalDashboard = () => {
                   </div>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 

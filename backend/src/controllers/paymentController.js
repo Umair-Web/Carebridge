@@ -3,6 +3,7 @@ const { getHospitalForUser } = require('../utils/resolveOrg');
 const Hospital = require('../models/Hospital');
 const { createJazzCashRequest, verifyJazzCashHash } = require('../services/jazzCashService');
 const { logAction } = require('../utils/logger');
+const { getFrontendBase } = require('../utils/frontendUrl');
 
 exports.initiateJazzCashPayment = async (req, res) => {
   try {
@@ -101,7 +102,7 @@ exports.jazzCashCallback = async (req, res) => {
     }
 
     // JazzCash usually expects a redirect back to the merchant site or a specific response
-    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/hospital/admissions?status=${responseCode === '000' ? 'success' : 'failed'}`);
+    res.redirect(`${getFrontendBase(req)}/hospital/admissions?status=${responseCode === '000' ? 'success' : 'failed'}`);
   } catch (error) {
     console.error('JazzCash Callback Error:', error);
     res.status(500).send('Internal Server Error');

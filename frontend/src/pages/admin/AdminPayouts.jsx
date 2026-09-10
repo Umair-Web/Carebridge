@@ -76,7 +76,7 @@ const AdminPayouts = () => {
                 </td>
                 <td className="px-5 py-3.5">
                   <p className="font-semibold text-slate-800">{p.consultantId?.userId?.name || '—'}</p>
-                  <p className="text-xs text-slate-400 font-mono">{p.consultantId?.pmdcNumber || ''}</p>
+                  {/* <p className="text-xs text-slate-400 font-mono">{p.consultantId?.pmdcNumber || ''}</p> */}
                 </td>
                 <td className="px-5 py-3.5 font-mono text-xs font-medium text-blue-600">
                   {p.referralId?.referralCode || '—'}
@@ -126,7 +126,7 @@ const AdminPayouts = () => {
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Consultant</p>
               <div className="bg-slate-50 p-4 rounded-xl grid grid-cols-2 gap-4">
                 <Field label="Name"        value={selected.consultantId?.userId?.name} />
-                <Field label="PMDC"        value={selected.consultantId?.pmdcNumber} />
+                {/* <Field label="PMDC"        value={selected.consultantId?.pmdcNumber} /> */}
                 <Field label="Specialty"   value={selected.consultantId?.specialty} />
                 <Field label="Promo Code"  value={selected.consultantId?.promoCode} />
               </div>

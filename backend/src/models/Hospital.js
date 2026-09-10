@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const BedInventorySchema = new mongoose.Schema({
   ward: {
     type: String,
-    enum: ['General', 'Private', 'ICU', 'NICU', 'PICU', 'HDU', 'Burns', 'Maternity', 'Psychiatric', 'Cardiac'],
-    required: true
+    required: true,
+    trim: true,
   },
   totalBeds: { type: Number, default: 0 },
   occupiedBeds: { type: Number, default: 0 },

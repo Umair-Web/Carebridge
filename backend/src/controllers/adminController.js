@@ -10,6 +10,11 @@ const PlatformSettings = require('../models/PlatformSettings');
 const AuditLog = require('../models/AuditLog');
 const HospitalDoctor = require('../models/HospitalDoctor');
 const { logAction } = require('../utils/logger');
+const {
+  getActiveDepartmentNames,
+  getActiveBedsInventory,
+  syncBedsInventoryWithDepartments,
+} = require('../utils/hospitalDepartments');
 const { ageFromDob } = require('../utils/age');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -586,7 +591,7 @@ exports.overrideReferral = async (req, res) => {
 exports.listAllBeds = async (req, res) => {
   try {
     const hospitals = await Hospital.find({ isActive: true })
-      .select('hospitalName city bedsInventory')
+      .select('hospitalName city bedsInventory departments inactiveDepartments')
       .lean();
     res.json({ success: true, data: hospitals });
   } catch (error) {
@@ -913,7 +918,7 @@ exports.forgotConsultantProfileAccessPassword = async (req, res) => {
     );
 
     const { sendAdminConsultantAccessResetEmail, ADMIN_DETAIL_ACCESS_RESET_EMAIL } = require('../utils/emailService');
-    const sent = await sendAdminConsultantAccessResetEmail(admin, resetToken);
+    const sent = await sendAdminConsultantAccessResetEmail(admin, resetToken, req);
     if (sent && sent.success === false) {
       return res.status(500).json({
         success: false,
@@ -1089,7 +1094,7 @@ exports.forgotHospitalProfileAccessPassword = async (req, res) => {
     );
 
     const { sendAdminHospitalAccessResetEmail, ADMIN_DETAIL_ACCESS_RESET_EMAIL } = require('../utils/emailService');
-    const sent = await sendAdminHospitalAccessResetEmail(admin, resetToken);
+    const sent = await sendAdminHospitalAccessResetEmail(admin, resetToken, req);
     if (sent && sent.success === false) {
       return res.status(500).json({
         success: false,
@@ -1580,8 +1585,13 @@ exports.adminUpdateHospitalBeds = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Hospital not found' });
     }
 
+    syncBedsInventoryWithDepartments(hospital);
+    const activeNames = new Set(getActiveDepartmentNames(hospital));
+
     beds.forEach((updatedWard) => {
-      const { ward, totalBeds, occupiedBeds } = updatedWard;
+      const ward = String(updatedWard.ward || '').trim();
+      if (!ward || !activeNames.has(ward)) return;
+      const { totalBeds, occupiedBeds } = updatedWard;
       let wardItem = hospital.bedsInventory.find((b) => b.ward === ward);
       if (!wardItem) {
         hospital.bedsInventory.push({
@@ -1603,7 +1613,7 @@ exports.adminUpdateHospitalBeds = async (req, res) => {
     if (io) {
       io.to(`hospital:${hospital._id.toString()}`).emit('BED_UPDATE', {
         hospitalId: hospital._id.toString(),
-        beds: hospital.bedsInventory,
+        beds: getActiveBedsInventory(hospital),
       });
     }
 
@@ -1615,7 +1625,7 @@ exports.adminUpdateHospitalBeds = async (req, res) => {
       details: { beds }
     });
 
-    res.json({ success: true, message: 'Bed inventory updated successfully', data: hospital.bedsInventory });
+    res.json({ success: true, message: 'Bed inventory updated successfully', data: getActiveBedsInventory(hospital) });
   } catch (error) {
     console.error('adminUpdateHospitalBeds error:', error);
     res.status(500).json({ success: false, message: 'Failed to update bed inventory' });

@@ -708,15 +708,24 @@ exports.verifyReferralDetailsPassword = async (req, res) => {
 /** Admin: change the patient-details password for a referral. */
 exports.changeReferralDetailsPassword = async (req, res) => {
   try {
-    const { password } = req.body;
-    if (!password || String(password).length < 6) {
-      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || req.body.password || '');
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
     }
-    const referral = await Referral.findById(req.params.id);
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+    }
+    const referral = await Referral.findById(req.params.id).select('+detailsPasswordHash');
     if (!referral) {
       return res.status(404).json({ success: false, message: 'Referral not found' });
     }
-    referral.detailsPasswordHash = await bcrypt.hash(String(password), 12);
+    const hash = await ensureReferralDetailsPassword(referral);
+    const ok = await bcrypt.compare(currentPassword, hash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Current access password is incorrect' });
+    }
+    referral.detailsPasswordHash = await bcrypt.hash(newPassword, 12);
     await referral.save();
 
     await logAction({
@@ -757,7 +766,7 @@ exports.forgotReferralDetailsPassword = async (req, res) => {
     );
 
     const { sendAdminReferralAccessResetEmail, ADMIN_DETAIL_ACCESS_RESET_EMAIL } = require('../utils/emailService');
-    const sent = await sendAdminReferralAccessResetEmail(admin, resetToken, referral.referralCode);
+    const sent = await sendAdminReferralAccessResetEmail(admin, resetToken, referral.referralCode, req);
     if (sent && sent.success === false) {
       return res.status(500).json({
         success: false,

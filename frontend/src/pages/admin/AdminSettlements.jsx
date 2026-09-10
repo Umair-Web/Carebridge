@@ -259,23 +259,23 @@ const AdminSettlements = () => {
               </div>
 
               {/* Grid: Split Amounts (platform charge + doctor commission = total the hospital owes) */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-950 text-white rounded-xl p-4 shadow-sm border border-slate-850">
-                <div className="text-center sm:border-r border-white/10">
+              <div className="grid grid-cols-1 sm:grid-cols-1 gap-4 bg-slate-950 text-white rounded-xl p-4 shadow-sm border border-slate-850 w-fit">
+                {/* <div className="text-center sm:border-r border-white/10">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Gross Billing</p>
                   <p className="text-lg font-black tabular-nums text-slate-100 mt-1">{formatPkr(selectedSettlement.grossAmountPaisa)}</p>
-                </div>
+                </div> */}
                 <div className="text-center sm:border-r border-white/10">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Platform Charge</p>
                   <p className="text-lg font-bold tabular-nums text-slate-200 mt-1">{formatPkr(selectedSettlement.platformChargeTotalPaisa ?? selectedSettlement.calculatedPlatformCutPaisa)}</p>
                 </div>
-                <div className="text-center sm:border-r border-white/10">
+                {/* <div className="text-center sm:border-r border-white/10">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Doctor Commission</p>
                   <p className="text-lg font-bold tabular-nums text-slate-200 mt-1">{formatPkr(selectedSettlement.doctorCommissionTotalPaisa ?? 0)}</p>
-                </div>
-                <div className="text-center">
+                </div> */}
+                {/* <div className="text-center">
                   <p className="text-[10px] text-teal-400 font-bold uppercase tracking-widest">Total Due</p>
                   <p className="text-lg font-black tabular-nums text-teal-400 mt-1">{formatPkr(selectedSettlement.facilityTotalPayablePaisa ?? selectedSettlement.calculatedPlatformCutPaisa)}</p>
-                </div>
+                </div> */}
               </div>
 
               {/* View Files Panel */}
@@ -422,7 +422,7 @@ const AdminSettlements = () => {
                               <span className="text-xs font-black text-indigo-650 dark:text-indigo-400 tabular-nums">
                                 Share: {formatPkr(pay.amountPaisa)}
                               </span>
-                              <span className="text-[10px] text-slate-400 block mt-0.5">Commission Rate: {pay.commissionPercentage}%</span>
+                              {/* <span className="text-[10px] text-slate-400 block mt-0.5">Commission Rate: {pay.commissionPercentage}%</span> */}
                             </div>
                           </div>
 

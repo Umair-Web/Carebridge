@@ -10,8 +10,6 @@ const { normalisePhone } = require('../utils/whatsappService');
 const { generateOtp, verifyOtp } = require('../utils/otpService');
 const notificationService = require('../services/notificationService');
 
-const ALLOWED_WARDS = ['General', 'Private', 'ICU', 'NICU', 'PICU', 'HDU', 'Burns', 'Maternity', 'Psychiatric', 'Cardiac'];
-
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -48,17 +46,11 @@ function parseHospitalRegistration(body) {
     return { error: 'Latitude or longitude out of range' };
   }
 
-  const rows = body.bedsInventory || body.beds;
-  if (!Array.isArray(rows) || rows.length === 0) {
-    return { error: 'Bed inventory is required for all wards' };
-  }
-
-  const inventory = [];
+  const rows = Array.isArray(body.bedsInventory || body.beds) ? (body.bedsInventory || body.beds) : [];
+  const byDept = new Map();
   for (const row of rows) {
-    const ward = row.ward;
-    if (!ALLOWED_WARDS.includes(ward)) {
-      continue;
-    }
+    const ward = String(row.ward || '').trim();
+    if (!ward || !cleanedDepts.includes(ward)) continue;
     const totalBeds = Number(row.totalBeds);
     const availableBeds = Number(row.availableBeds);
     if (!Number.isFinite(totalBeds) || totalBeds < 0) {
@@ -67,7 +59,7 @@ function parseHospitalRegistration(body) {
     if (!Number.isFinite(availableBeds) || availableBeds < 0 || availableBeds > totalBeds) {
       return { error: `Invalid available beds for ${ward}` };
     }
-    inventory.push({
+    byDept.set(ward, {
       ward,
       totalBeds,
       availableBeds,
@@ -75,17 +67,12 @@ function parseHospitalRegistration(body) {
     });
   }
 
-  const wardsPresent = new Set(inventory.map((i) => i.ward));
-  for (const w of ALLOWED_WARDS) {
-    if (!wardsPresent.has(w)) {
-      return { error: `Bed row required for ward: ${w}` };
-    }
-  }
-
-  const general = inventory.find((i) => i.ward === 'General');
-  if (!general || general.availableBeds < 1) {
-    return { error: 'General ward must have at least 1 available bed' };
-  }
+  const inventory = cleanedDepts.map((dept) => byDept.get(dept) || {
+    ward: dept,
+    totalBeds: 0,
+    availableBeds: 0,
+    occupiedBeds: 0,
+  });
 
   return {
     departments: cleanedDepts,
@@ -497,7 +484,7 @@ exports.resendVerification = async (req, res) => {
     user.emailVerificationExpires = emailTokenExpires;
     await user.save();
 
-    await sendVerificationEmail(user, emailToken);
+    await sendVerificationEmail(user, emailToken, req);
 
     res.status(200).json({ success: true, message: 'A new verification email has been sent.' });
   } catch (error) {
@@ -558,7 +545,7 @@ exports.forgotPassword = async (req, res) => {
     user.resetPasswordExpires = resetExpires;
     await user.save();
 
-    await sendResetPasswordEmail(user, resetToken);
+    await sendResetPasswordEmail(user, resetToken, req);
 
     res.status(200).json({
       success: true,

@@ -52,10 +52,61 @@ const normalizeDepartmentsUpdate = (departmentsInput, inactiveInput) => {
   return { departments, inactiveDepartments };
 };
 
+const emptyBedRow = (ward) => ({
+  ward,
+  totalBeds: 0,
+  occupiedBeds: 0,
+  availableBeds: 0,
+});
+
+const findBedRow = (inventory, ward) => {
+  const name = String(ward || '').trim().toLowerCase();
+  if (!name) return undefined;
+  return (inventory || []).find((b) => String(b.ward || '').trim().toLowerCase() === name);
+};
+
+/**
+ * Keep `bedsInventory` aligned with configured departments:
+ * one row per department, drop leftover ward-type rows.
+ * Returns true when the inventory was mutated.
+ */
+const syncBedsInventoryWithDepartments = (hospital) => {
+  if (!hospital) return false;
+  const names = getDepartmentNames(hospital);
+  const nameSet = new Set(names);
+  const existing = Array.isArray(hospital.bedsInventory) ? [...hospital.bedsInventory] : [];
+
+  const byName = new Map();
+  for (const row of existing) {
+    const ward = String(row.ward || '').trim();
+    if (!ward || !nameSet.has(ward) || byName.has(ward)) continue;
+    byName.set(ward, row);
+  }
+
+  const next = names.map((name) => byName.get(name) || emptyBedRow(name));
+  const changed =
+    existing.length !== next.length ||
+    existing.some((row, i) => String(row.ward || '').trim() !== names[i]);
+
+  if (changed) {
+    hospital.bedsInventory = next;
+  }
+  return changed;
+};
+
+const getActiveBedsInventory = (hospital) => {
+  const active = new Set(getActiveDepartmentNames(hospital));
+  return (hospital.bedsInventory || []).filter((b) => active.has(String(b.ward || '').trim()));
+};
+
 module.exports = {
   asNameList,
   getDepartmentNames,
   getActiveDepartmentNames,
   isDepartmentActive,
   normalizeDepartmentsUpdate,
+  emptyBedRow,
+  findBedRow,
+  syncBedsInventoryWithDepartments,
+  getActiveBedsInventory,
 };

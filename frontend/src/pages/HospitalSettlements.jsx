@@ -613,7 +613,7 @@ const HospitalSettlements = () => {
                 </div>
 
                 {/* Consultant payouts detail tracker */}
-                {settlement.consultantPayouts?.length > 0 && (
+                {/* {settlement.consultantPayouts?.length > 0 && (
                   <div className="border-t border-slate-50 dark:border-slate-850 pt-4 space-y-2.5 transition-colors">
                     <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Doctor Commissions Distribution Tracker</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -651,7 +651,7 @@ const HospitalSettlements = () => {
                       ))}
                     </div>
                   </div>
-                )}
+                )} */}
 
               </div>
             ))}

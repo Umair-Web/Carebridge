@@ -5,7 +5,10 @@ const Admission = require('../models/Admission');
 const HospitalDoctor = require('../models/HospitalDoctor');
 const {
   getActiveDepartmentNames,
+  getActiveBedsInventory,
+  isDepartmentActive,
   normalizeDepartmentsUpdate,
+  syncBedsInventoryWithDepartments,
 } = require('../utils/hospitalDepartments');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -260,6 +263,10 @@ exports.getDashboardStats = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Hospital profile not found' });
     }
 
+    if (syncBedsInventoryWithDepartments(hospital)) {
+      await hospital.save();
+    }
+
     const referrals = await Referral.find({ targetHospitalId: hospital._id });
 
     const billed = await Admission.find({
@@ -276,7 +283,7 @@ exports.getDashboardStats = async (req, res) => {
       admittedReferrals: referrals.filter((r) => r.status === 'admitted').length,
       closedReferrals: referrals.filter((r) => r.status === 'closed').length,
       revenuePaisa,
-      beds: hospital.bedsInventory,
+      beds: getActiveBedsInventory(hospital),
       departments: getActiveDepartmentNames(hospital),
       inactiveDepartments: hospital.inactiveDepartments || [],
     };
@@ -389,7 +396,13 @@ exports.getReferralPipeline = async (req, res) => {
 exports.getBeds = async (req, res) => {
   try {
     const hospital = await getHospitalForUser(req.user);
-    res.json({ success: true, data: hospital.bedsInventory });
+    if (!hospital) {
+      return res.status(404).json({ success: false, message: 'Hospital profile not found' });
+    }
+    if (syncBedsInventoryWithDepartments(hospital)) {
+      await hospital.save();
+    }
+    res.json({ success: true, data: getActiveBedsInventory(hospital) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error fetching bed inventory' });
   }
@@ -399,38 +412,57 @@ exports.updateBeds = async (req, res) => {
   try {
     const { ward, availableBeds, totalBeds, occupiedBeds } = req.body;
     const hospital = await getHospitalForUser(req.user);
-
-    const wardIndex = hospital.bedsInventory.findIndex((b) => b.ward === ward);
-    if (wardIndex > -1) {
-      const row = hospital.bedsInventory[wardIndex];
-      if (totalBeds != null && totalBeds !== '') {
-        row.totalBeds = Math.max(0, Number(totalBeds));
-      }
-      if (occupiedBeds != null && occupiedBeds !== '') {
-        row.occupiedBeds = Math.max(0, Number(occupiedBeds));
-        row.availableBeds = Math.max(0, row.totalBeds - row.occupiedBeds);
-      } else if (availableBeds != null && availableBeds !== '') {
-        row.availableBeds = Math.max(0, Number(availableBeds));
-        row.occupiedBeds = Math.max(0, row.totalBeds - row.availableBeds);
-      }
-      if (row.occupiedBeds > row.totalBeds) {
-        row.occupiedBeds = row.totalBeds;
-        row.availableBeds = 0;
-      }
-      await hospital.save();
-
-      const io = req.app.get('io');
-      if (io) {
-        io.to(`hospital:${hospital._id.toString()}`).emit('BED_UPDATE', {
-          hospitalId: hospital._id.toString(),
-          beds: hospital.bedsInventory,
-        });
-      }
-
-      res.json({ success: true, message: 'Bed inventory updated', data: hospital.bedsInventory });
-    } else {
-      res.status(404).json({ success: false, message: 'Ward not found' });
+    if (!hospital) {
+      return res.status(404).json({ success: false, message: 'Hospital profile not found' });
     }
+
+    const wardName = String(ward || '').trim();
+    if (!wardName) {
+      return res.status(400).json({ success: false, message: 'Department is required' });
+    }
+    if (!isDepartmentActive(hospital, wardName)) {
+      return res.status(400).json({ success: false, message: 'Beds can only be updated for active departments' });
+    }
+
+    syncBedsInventoryWithDepartments(hospital);
+
+    let wardIndex = hospital.bedsInventory.findIndex((b) => b.ward === wardName);
+    if (wardIndex < 0) {
+      hospital.bedsInventory.push({
+        ward: wardName,
+        totalBeds: 0,
+        occupiedBeds: 0,
+        availableBeds: 0,
+      });
+      wardIndex = hospital.bedsInventory.length - 1;
+    }
+
+    const row = hospital.bedsInventory[wardIndex];
+    if (totalBeds != null && totalBeds !== '') {
+      row.totalBeds = Math.max(0, Number(totalBeds));
+    }
+    if (occupiedBeds != null && occupiedBeds !== '') {
+      row.occupiedBeds = Math.max(0, Number(occupiedBeds));
+      row.availableBeds = Math.max(0, row.totalBeds - row.occupiedBeds);
+    } else if (availableBeds != null && availableBeds !== '') {
+      row.availableBeds = Math.max(0, Number(availableBeds));
+      row.occupiedBeds = Math.max(0, row.totalBeds - row.availableBeds);
+    }
+    if (row.occupiedBeds > row.totalBeds) {
+      row.occupiedBeds = row.totalBeds;
+      row.availableBeds = 0;
+    }
+    await hospital.save();
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`hospital:${hospital._id.toString()}`).emit('BED_UPDATE', {
+        hospitalId: hospital._id.toString(),
+        beds: getActiveBedsInventory(hospital),
+      });
+    }
+
+    res.json({ success: true, message: 'Bed inventory updated', data: getActiveBedsInventory(hospital) });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error updating bed inventory' });
   }
@@ -454,6 +486,7 @@ exports.updateDepartments = async (req, res) => {
     );
     hospital.departments = normalized.departments;
     hospital.inactiveDepartments = normalized.inactiveDepartments;
+    syncBedsInventoryWithDepartments(hospital);
     await hospital.save();
 
     res.json({

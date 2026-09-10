@@ -6,7 +6,7 @@ const { scoreHospital, calculateDistance } = require('../src/utils/scoringEngine
 const baseHospital = () => ({
   _id: 'hospitalA',
   hospitalName: 'Test General Hospital',
-  bedsInventory: [{ ward: 'General', totalBeds: 10, occupiedBeds: 5, availableBeds: 5 }],
+  bedsInventory: [{ ward: 'Cardiology', totalBeds: 10, occupiedBeds: 5, availableBeds: 5 }],
   departments: ['Cardiology'],
   location: { coordinates: [67.0099, 24.8607] }, // [lng, lat]
   ratePackages: [{ department: 'Cardiology', minPrice: 1000, maxPrice: 5000 }],
@@ -15,7 +15,7 @@ const baseHospital = () => ({
 });
 
 const baseReferral = () => ({
-  urgency: 'routine', // -> General ward
+  urgency: 'routine',
   department: 'Cardiology',
   location: { lat: 24.8607, lng: 67.0099 }, // identical coords -> distance ~0
   budgetMax: 6000, // >= package maxPrice -> full cost-fit
@@ -38,17 +38,18 @@ test('returns null when the hospital lacks the required department', () => {
   assert.strictEqual(scoreHospital(h, baseReferral(), null), null);
 });
 
-test('returns null when the target ward has no available beds', () => {
+test('returns null when the referred department has no available beds', () => {
   const h = baseHospital();
-  h.bedsInventory = [{ ward: 'General', totalBeds: 10, occupiedBeds: 10, availableBeds: 0 }];
+  h.bedsInventory = [{ ward: 'Cardiology', totalBeds: 10, occupiedBeds: 10, availableBeds: 0 }];
   assert.strictEqual(scoreHospital(h, baseReferral(), null), null);
 });
 
-test('emergency referrals require an ICU bed', () => {
-  const h = baseHospital(); // only has General beds
+test('emergency referrals use beds from the referred department', () => {
+  const h = baseHospital();
   const r = baseReferral();
   r.urgency = 'emergency';
-  assert.strictEqual(scoreHospital(h, r, null), null);
+  const result = scoreHospital(h, r, null);
+  assert.ok(result, 'should score when the department has available beds');
 });
 
 test('totalScore is capped at 100', () => {

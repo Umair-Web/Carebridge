@@ -38,7 +38,7 @@ const ResetReferralAccessPassword = () => {
       });
       if (res.data.success) {
         toast.success(res.data.message || 'Referral access password updated');
-        navigate('/admin/referrals');
+        navigate('/login');
       } else {
         toast.error(res.data.message || 'Failed to reset password');
       }
@@ -50,39 +50,40 @@ const ResetReferralAccessPassword = () => {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto py-12 px-4 sm:px-6 lg:px-8">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 shadow-xl">
-        <div className="mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-xl mb-4">
-            🔑
-          </div>
-          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Reset referral access password
-          </h2>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            Set a new password for unlocking this referral&apos;s patient details in the admin portal.
-          </p>
-        </div>
+    <div className="w-full max-w-md mx-auto">
+      <div>
+        <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+          Reset access password
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          Set a new password for unlocking this referral&apos;s patient details.
+        </p>
+      </div>
 
-        {!token ? (
-          <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-2xl text-red-800 dark:text-red-400 text-sm">
-            <p className="font-semibold mb-1">Invalid link</p>
-            <p>This reset link is invalid or incomplete. Request a new one from Admin → Referrals → Details.</p>
-            <div className="mt-4">
-              <Link to="/admin/referrals" className="font-bold text-blue-600 hover:text-blue-500">
-                Back to Referrals &rarr;
-              </Link>
-            </div>
+      {!token ? (
+        <div className="mt-8 space-y-6">
+          <div className="rounded-xl bg-red-50 border border-red-200 p-4">
+            <p className="text-sm text-red-800 font-semibold">Invalid link</p>
+            <p className="text-xs text-red-600 mt-0.5">
+              This reset link is invalid or incomplete. Request a new one from Admin → Referrals → Details.
+            </p>
           </div>
-        ) : (
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <div className="text-center text-sm">
+            <Link to="/login" className="font-bold text-blue-600 hover:text-blue-500 transition-colors">
+              Back to sign in
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">New access password</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">New access password</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
-                  className="appearance-none rounded-xl relative block w-full px-4 py-3 pr-10 border border-slate-200 dark:border-slate-700 placeholder-slate-400 text-slate-900 dark:text-white bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+                  className="appearance-none rounded-xl relative block w-full px-4 py-3 pr-10 border border-slate-200 placeholder-slate-400 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm transition-all shadow-sm"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -90,7 +91,7 @@ const ResetReferralAccessPassword = () => {
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -98,12 +99,12 @@ const ResetReferralAccessPassword = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Confirm password</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Confirm password</label>
               <div className="relative">
                 <input
                   type={showConfirm ? 'text' : 'password'}
                   required
-                  className="appearance-none rounded-xl relative block w-full px-4 py-3 pr-10 border border-slate-200 dark:border-slate-700 placeholder-slate-400 text-slate-900 dark:text-white bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:text-sm"
+                  className="appearance-none rounded-xl relative block w-full px-4 py-3 pr-10 border border-slate-200 placeholder-slate-400 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm transition-all shadow-sm"
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -111,23 +112,33 @@ const ResetReferralAccessPassword = () => {
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none"
                   onClick={() => setShowConfirm(!showConfirm)}
                 >
                   {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
+          </div>
+
+          <div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-3 px-4 text-sm font-bold rounded-xl text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-70"
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all disabled:opacity-70 shadow-md hover:shadow-lg"
             >
               {isLoading ? 'Updating…' : 'Set new access password'}
             </button>
-          </form>
-        )}
-      </div>
+          </div>
+
+          <div className="text-center text-sm mt-6">
+            <span className="text-slate-600">Remembered your password? </span>
+            <Link to="/login" className="font-bold text-blue-600 hover:text-blue-500 transition-colors">
+              Sign in
+            </Link>
+          </div>
+        </form>
+      )}
     </div>
   );
 };

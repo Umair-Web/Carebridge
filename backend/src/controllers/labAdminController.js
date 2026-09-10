@@ -162,7 +162,7 @@ exports.forgotLabProfileAccessPassword = async (req, res) => {
     );
 
     const { sendAdminLabAccessResetEmail, ADMIN_DETAIL_ACCESS_RESET_EMAIL } = require('../utils/emailService');
-    const sent = await sendAdminLabAccessResetEmail(admin, resetToken);
+    const sent = await sendAdminLabAccessResetEmail(admin, resetToken, req);
     if (sent && sent.success === false) {
       return res.status(500).json({
         success: false,

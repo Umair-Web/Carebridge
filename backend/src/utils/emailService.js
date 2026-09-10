@@ -2,6 +2,7 @@ const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 const { sendViaResend, isResendConfigured } = require('./resendEmail');
+const { getFrontendBase } = require('./frontendUrl');
 
 /** Fixed inbox for all admin detail-access password reset links. */
 const ADMIN_DETAIL_ACCESS_RESET_EMAIL =
@@ -151,8 +152,8 @@ const sendEmail = async ({ to, subject, html, text }) => {
   return writeMockEmailFile({ to, subject, html, text });
 };
 
-const sendVerificationEmail = async (user, token) => {
-  const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${token}`;
+const sendVerificationEmail = async (user, token, req) => {
+  const verificationUrl = `${getFrontendBase(req)}/verify-email?token=${token}`;
   return sendEmail({
     to: user.email,
     subject: 'Verify your email — CareBridge Health',
@@ -171,8 +172,8 @@ const sendEmailOtp = async (user, otp) => {
   });
 };
 
-const sendResetPasswordEmail = async (user, token) => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+const sendResetPasswordEmail = async (user, token, req) => {
+  const resetUrl = `${getFrontendBase(req)}/reset-password?token=${token}`;
   return sendEmail({
     to: user.email,
     subject: 'Reset your password — CareBridge Health',
@@ -181,8 +182,8 @@ const sendResetPasswordEmail = async (user, token) => {
   });
 };
 
-const sendAdminLabAccessResetEmail = async (user, token) => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-lab-access?token=${token}`;
+const sendAdminLabAccessResetEmail = async (user, token, req) => {
+  const resetUrl = `${getFrontendBase(req)}/reset-lab-access?token=${token}`;
   const recipient = { name: user?.name || 'Admin', email: ADMIN_DETAIL_ACCESS_RESET_EMAIL };
   return sendEmail({
     to: ADMIN_DETAIL_ACCESS_RESET_EMAIL,
@@ -192,8 +193,8 @@ const sendAdminLabAccessResetEmail = async (user, token) => {
   });
 };
 
-const sendAdminReferralAccessResetEmail = async (user, token, referralCode) => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-referral-access?token=${encodeURIComponent(token)}`;
+const sendAdminReferralAccessResetEmail = async (user, token, referralCode, req) => {
+  const resetUrl = `${getFrontendBase(req)}/reset-referral-access?token=${encodeURIComponent(token)}`;
   const recipient = { name: user?.name || 'Admin', email: ADMIN_DETAIL_ACCESS_RESET_EMAIL };
   return sendEmail({
     to: ADMIN_DETAIL_ACCESS_RESET_EMAIL,
@@ -203,8 +204,8 @@ const sendAdminReferralAccessResetEmail = async (user, token, referralCode) => {
   });
 };
 
-const sendAdminConsultantAccessResetEmail = async (user, token) => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-consultant-access?token=${encodeURIComponent(token)}`;
+const sendAdminConsultantAccessResetEmail = async (user, token, req) => {
+  const resetUrl = `${getFrontendBase(req)}/reset-consultant-access?token=${encodeURIComponent(token)}`;
   const recipient = { name: user?.name || 'Admin', email: ADMIN_DETAIL_ACCESS_RESET_EMAIL };
   return sendEmail({
     to: ADMIN_DETAIL_ACCESS_RESET_EMAIL,
@@ -214,8 +215,8 @@ const sendAdminConsultantAccessResetEmail = async (user, token) => {
   });
 };
 
-const sendAdminHospitalAccessResetEmail = async (user, token) => {
-  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-hospital-access?token=${encodeURIComponent(token)}`;
+const sendAdminHospitalAccessResetEmail = async (user, token, req) => {
+  const resetUrl = `${getFrontendBase(req)}/reset-hospital-access?token=${encodeURIComponent(token)}`;
   const recipient = { name: user?.name || 'Admin', email: ADMIN_DETAIL_ACCESS_RESET_EMAIL };
   return sendEmail({
     to: ADMIN_DETAIL_ACCESS_RESET_EMAIL,

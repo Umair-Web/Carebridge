@@ -23,16 +23,13 @@ const Counter = require('../models/Counter');
 
 const { ensurePlatformData } = require('../bootstrap/ensurePlatformData');
 
-const ALLOWED_WARDS = ['General', 'Private', 'ICU', 'NICU', 'PICU', 'HDU', 'Burns', 'Maternity', 'Psychiatric', 'Cardiac'];
-
-const seedBeds = () => {
-  return ALLOWED_WARDS.map(w => ({
+const seedBeds = (departments = []) =>
+  departments.map((w) => ({
     ward: w,
     totalBeds: 10,
     occupiedBeds: 2,
-    availableBeds: 8
+    availableBeds: 8,
   }));
-};
 
 async function run() {
   try {
@@ -122,7 +119,7 @@ async function run() {
         representativeCnic: h.cnic,
         address: h.address,
         departments: h.departments,
-        bedsInventory: seedBeds(),
+        bedsInventory: seedBeds(h.departments),
         location: { type: 'Point', coordinates: [h.lng, h.lat] },
         isActive: true,
         isRegistrationVerified: true,
