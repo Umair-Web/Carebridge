@@ -1499,7 +1499,13 @@ exports.updateReferralFull = async (req, res) => {
       if (derivedAge != null) updates.age = derivedAge;
     }
 
+    const wasClosed = referral.status === 'closed';
     Object.assign(referral, updates);
+    if (!wasClosed && referral.status === 'closed') {
+      referral.closedAt = referral.closedAt || new Date();
+      const { resolveCloserActor, applyCloserToReferral } = require('../utils/closerActor');
+      applyCloserToReferral(referral, await resolveCloserActor(req.user));
+    }
     await referral.save();
 
     // Synchronize admission details if present

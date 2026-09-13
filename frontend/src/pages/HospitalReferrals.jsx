@@ -7,6 +7,7 @@ import Loader from '../components/Loader';
 import { downloadPdf } from '../utils/downloadFile';
 import { ageLabel } from '../utils/dob';
 import { detailsViewAccessOf } from '../utils/referralAccess';
+import { formatClosedBy } from '../utils/closedBy';
 import toast from 'react-hot-toast';
 
 const urgencyStyles = {
@@ -323,6 +324,14 @@ const HospitalReferrals = () => {
                               <span className="text-slate-400 font-medium">Closed At:</span>
                               <span className="font-bold text-slate-700 dark:text-slate-300">
                                 {new Date(detail.closedAt).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          {(formatClosedBy(detail) || (detail.status === 'closed' && detail.closedByName)) && (
+                            <div className="flex justify-between items-center text-xs gap-3">
+                              <span className="text-slate-400 font-medium shrink-0">Closed By:</span>
+                              <span className="font-bold text-slate-700 dark:text-slate-300 text-right">
+                                {formatClosedBy(detail)}
                               </span>
                             </div>
                           )}

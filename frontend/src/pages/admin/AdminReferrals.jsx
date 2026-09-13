@@ -10,6 +10,7 @@ import DobPicker from '../../components/DobPicker';
 import ReferralDetailsPasswordGate from '../../components/ReferralDetailsPasswordGate';
 import { ageFromDob, formatDob, formatAge, ageLabel } from '../../utils/dob';
 import { detailsViewAccessOf } from '../../utils/referralAccess';
+import { formatClosedBy } from '../../utils/closedBy';
 
 const AdminReferrals = () => {
   const queryClient = useQueryClient();
@@ -485,6 +486,30 @@ const AdminReferrals = () => {
                         <span className="font-bold text-slate-800">
                           {selectedRef.admission.treatingDoctorId?.name ? `Dr. ${selectedRef.admission.treatingDoctorId.name.replace(/^Dr\.\s*/i, '')} (${selectedRef.admission.treatingDoctorId.specialty || 'N/A'})` : '—'}
                         </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {(selectedRef.status === 'closed' || selectedRef.closedAt || formatClosedBy(selectedRef)) && (
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Case Closure</h3>
+                    <div className="bg-slate-50 p-4 rounded-xl text-sm border border-slate-100 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 block mb-0.5">Closed At</span>
+                          <span className="font-semibold text-slate-800">
+                            {selectedRef.closedAt
+                              ? new Date(selectedRef.closedAt).toLocaleString()
+                              : '—'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 block mb-0.5">Closed By</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatClosedBy(selectedRef) || '—'}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -278,11 +278,14 @@ exports.completeAdmission = async (req, res) => {
     }
 
     const io = req.app.get('io');
+    const { resolveCloserActor } = require('../utils/closerActor');
+    const closerActor = await resolveCloserActor(req.user);
     const finalized = await billingService.finalizeAdmission(
       admission._id,
       pm,
       admission.paymentReference,
-      io
+      io,
+      closerActor
     );
 
     res.json({

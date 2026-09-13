@@ -77,7 +77,8 @@ exports.jazzCashCallback = async (req, res) => {
         admission._id,
         'jazzcash',
         txnRef,
-        io
+        io,
+        { closedBy: null, closedByName: 'JazzCash Payment', closedByKind: 'jazzcash' }
       );
 
       await logAction({

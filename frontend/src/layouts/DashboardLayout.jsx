@@ -147,7 +147,7 @@ const DashboardLayout = () => {
             </NavLink>
             <NavLink to="/admin/consultants" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Consultants</NavLink>
             <NavLink to="/admin/hospitals" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Hospitals</NavLink>
-            <NavLink to="/admin/payouts" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Payouts</NavLink>
+            {/* <NavLink to="/admin/payouts" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Payouts</NavLink> */}
             <NavLink to="/admin/settlements" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Settlements</NavLink>
             <NavLink to="/admin/settings" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Setup</NavLink>
             <NavLink to="/admin/audit" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Audit</NavLink>
@@ -233,7 +233,7 @@ const DashboardLayout = () => {
               </BrandNavLink>
               <BrandNavLink to="/admin/consultants"><span>Consultants</span></BrandNavLink>
               <BrandNavLink to="/admin/hospitals"><span>Hospitals</span></BrandNavLink>
-              <BrandNavLink to="/admin/payouts"><span>Payouts</span></BrandNavLink>
+              {/* <BrandNavLink to="/admin/payouts"><span>Payouts</span></BrandNavLink> */}
               <BrandNavLink to="/admin/settlements"><span>Settlements Queue</span></BrandNavLink>
               <BrandNavLink to="/admin/scoring"><span>Scoring weights</span></BrandNavLink>
               <BrandNavLink to="/admin/departments"><span>Departments</span></BrandNavLink>

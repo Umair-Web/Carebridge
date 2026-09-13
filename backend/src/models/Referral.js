@@ -82,6 +82,13 @@ const ReferralSchema = new mongoose.Schema(
     acceptedAt: { type: Date },
     admittedAt: { type: Date },
     closedAt: { type: Date },
+    /** Who closed / finalized this patient case (hospital owner, team member, admin, or system). */
+    closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    closedByName: { type: String, trim: true },
+    closedByKind: {
+      type: String,
+      enum: ['hospital_owner', 'hospital_team', 'admin', 'system', 'jazzcash'],
+    },
 
     /**
      * Password gate for viewing full patient/referral details (admin + unlocked roles).

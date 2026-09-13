@@ -4,6 +4,7 @@ const Consultant = require('../models/Consultant');
 const Payout = require('../models/Payout');
 const PlatformSettings = require('../models/PlatformSettings');
 const commissionService = require('./commissionService');
+const { applyCloserToReferral } = require('../utils/closerActor');
 
 /**
  * Finalizes an admission:
@@ -11,8 +12,9 @@ const commissionService = require('./commissionService');
  * 2. Marks Referral as 'closed'
  * 3. Accrues Payout for Consultant
  * 4. Updates Consultant balances
+ * @param {object} [closerActor] - optional { closedBy, closedByName, closedByKind }
  */
-exports.finalizeAdmission = async (admissionId, paymentMethod, paymentReference, io) => {
+exports.finalizeAdmission = async (admissionId, paymentMethod, paymentReference, io, closerActor) => {
   const admission = await Admission.findById(admissionId).populate('referralId');
   if (!admission || admission.status === 'billed') return admission;
 
@@ -49,6 +51,15 @@ exports.finalizeAdmission = async (admissionId, paymentMethod, paymentReference,
   if (referral) {
     referral.status = 'closed';
     referral.closedAt = new Date();
+    if (closerActor) {
+      applyCloserToReferral(referral, closerActor);
+    } else if (!referral.closedByName) {
+      applyCloserToReferral(referral, {
+        closedBy: null,
+        closedByName: 'System',
+        closedByKind: 'system',
+      });
+    }
     await referral.save();
   }
 

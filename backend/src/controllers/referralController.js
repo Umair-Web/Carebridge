@@ -903,6 +903,8 @@ exports.updateReferralStatus = async (req, res) => {
     if (status === 'closed') {
       referral.closedAt = now;
       referral.detailsViewAccess = 'suspended';
+      const { resolveCloserActor, applyCloserToReferral } = require('../utils/closerActor');
+      applyCloserToReferral(referral, await resolveCloserActor(req.user));
       // Trigger payout logic (Q14)
       const { creditConsultantWallet } = require('../services/paymentService');
       await creditConsultantWallet(referral.consultantId, referral._id, 100000);
