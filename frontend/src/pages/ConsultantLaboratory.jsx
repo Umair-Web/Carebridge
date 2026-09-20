@@ -18,7 +18,7 @@ import { labDetailsViewAccessOf } from '../utils/referralAccess';
 const TABS = [
   { key: 'new', label: 'New Referral' },
   { key: 'mine', label: 'My Referrals' },
-  { key: 'earnings', label: 'Lab Earnings' },
+  // { key: 'earnings', label: 'Lab Earnings' },
 ];
 
 const STATUS_BADGE = {

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, FileText, Pencil, Save, Plus, Trash2, Shield } from 'lucide-react';
+import { X, FileText, Pencil, Save, Plus, Trash2, Shield, Download } from 'lucide-react';
 import api from '../utils/api';
 import { formatPkr } from '../utils/formatPkr';
+import { downloadPdf } from '../utils/downloadFile';
 import toast from 'react-hot-toast';
 import DobPicker from './DobPicker';
 import { ageFromDob, formatDob, formatAge, ageLabel } from '../utils/dob';
@@ -184,14 +185,28 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
   ) : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={onClose} aria-label="Close" />
+      <aside className="relative h-full w-full max-w-xl bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-100 dark:border-slate-800 flex flex-col animate-in slide-in-from-right duration-300">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div>
             <h2 className="text-lg font-black text-slate-900 dark:text-slate-50">{referral?.patientName || 'Lab Referral'}</h2>
             <p className="font-mono text-xs text-sky-600 dark:text-sky-400">{referral?.referralCode}</p>
           </div>
           <div className="flex items-center gap-2">
+            {referral && (
+              <button
+                type="button"
+                onClick={() => downloadPdf(
+                  `/exports/admin/lab-referrals/${referral._id}`,
+                  `Lab_Record_${referral.referralCode}.pdf`
+                )}
+                title="Download record PDF"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold rounded-lg transition-colors"
+              >
+                <Download size={13} /> PDF
+              </button>
+            )}
             {editable && !editing && referral && (
               <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg"><Pencil size={13} /> Edit</button>
             )}
@@ -199,6 +214,7 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
           </div>
         </div>
 
+        <div className="flex-1 overflow-y-auto">
         {isError ? (
           <div className="p-10 text-center text-sm text-amber-700 dark:text-amber-400">
             {error?.response?.data?.message || 'Patient details viewing is suspended by admin'}
@@ -332,7 +348,8 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
             {accessPasswordForm}
           </div>
         )}
-      </div>
+        </div>
+      </aside>
     </div>
   );
 };

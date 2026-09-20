@@ -519,7 +519,7 @@ exports.getFinancialLedger = async (req, res) => {
       commissionPercentage: 0,
       adminSharePaisa: 0,
     })
-      .populate('referralId', 'referralCode patientName urgency department')
+      .populate('referralId', 'referralCode patientName urgency department closedByName closedByKind closedAt')
       .populate({ path: 'consultantId', populate: { path: 'userId', select: 'name email' } })
       .sort({ createdAt: -1 })
       .lean();

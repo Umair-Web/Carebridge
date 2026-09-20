@@ -391,7 +391,7 @@ const AdminSettings = () => {
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold flex items-center gap-2">
               <Calculator className="text-blue-400" size={18} />
-              Real-Time Commission Simulator
+              Real-Time Platform Cut
             </h2>
             <span className="bg-white/10 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest text-blue-300">
               Live Flow
@@ -448,7 +448,7 @@ const AdminSettings = () => {
                 {/* Sub-splits from Platform Cut */}
                 <div className="pl-6 border-l-2 border-slate-800 space-y-2 mt-1">
                   {/* Consultant Share */}
-                  <div className="flex justify-between items-center bg-white/5 border border-white/10 p-3 rounded-xl">
+                  {/* <div className="flex justify-between items-center bg-white/5 border border-white/10 p-3 rounded-xl">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-emerald-500" />
                       <div>
@@ -457,7 +457,7 @@ const AdminSettings = () => {
                       </div>
                     </div>
                     <span className="text-xs font-black text-emerald-400">PKR {consultantShare.toLocaleString()}</span>
-                  </div>
+                  </div> */}
 
                   {/* Admin Net Share */}
                   <div className="flex justify-between items-center bg-white/5 border border-white/10 p-3 rounded-xl">

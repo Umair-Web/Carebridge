@@ -5,6 +5,7 @@ import { formatPkr } from '../utils/formatPkr';
 import toast from 'react-hot-toast';
 import DetailModal from '../components/DetailModal';
 import Loader from '../components/Loader';
+import { formatClosedBy } from '../utils/closedBy';
 
 const HospitalLedger = () => {
   const [payouts, setPayouts] = useState([]);
@@ -268,9 +269,9 @@ const HospitalLedger = () => {
                     <p className="font-bold text-slate-800 dark:text-slate-100">Dr. {selected.consultantId.userId?.name || '—'}</p>
                     <p className="text-slate-400 dark:text-slate-500 mt-0.5">{selected.consultantId.userId?.email || '—'}</p>
                   </div>
-                  <span className="bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-400 px-2.5 py-1 rounded font-black text-[10px] tracking-wider uppercase">
+                  {/* <span className="bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-400 px-2.5 py-1 rounded font-black text-[10px] tracking-wider uppercase">
                     {selected.consultantId.pmdcNumber || '—'}
-                  </span>
+                  </span> */}
                 </div>
               </div>
             )}
@@ -280,7 +281,15 @@ const HospitalLedger = () => {
               <span>Billed & Discharged on:</span>
               <span className="font-bold text-slate-600 dark:text-slate-300">{new Date(selected.createdAt).toLocaleString('en-PK')}</span>
             </div>
+
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-5 text-xs text-slate-400 dark:text-slate-500 flex justify-between gap-3 transition-colors">
+              <span className="shrink-0">Closed By:</span>
+              <span className="font-bold text-slate-600 dark:text-slate-300 text-right">
+                {formatClosedBy(selected.referralId) || '—'}
+              </span>
+            </div>
           </div>
+          
         )}
       </DetailModal>
     </div>

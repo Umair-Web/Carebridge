@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
-  Receipt, FileText, CheckCircle2, AlertCircle, Landmark, Upload, 
+  Receipt, FileText, CheckCircle2, AlertCircle, Landmark, 
   ExternalLink, Eye, ArrowRight, UserCheck, XCircle, Search, CreditCard 
 } from 'lucide-react';
 import api from '../../utils/api';
@@ -17,10 +17,6 @@ const AdminSettlements = () => {
   const [selectedSettlement, setSelectedSettlement] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
-
-  // Consultant payout receipt upload state
-  const [payoutReceipts, setPayoutReceipts] = useState({});
-  const [uploadingPayout, setUploadingPayout] = useState({});
 
   const fetchSettlements = useCallback(async () => {
     try {
@@ -65,42 +61,6 @@ const AdminSettlements = () => {
     }
   };
 
-  // Upload payout receipt proof to consultant
-  const handleUploadPayoutReceipt = async (settlementId, consultantId, file) => {
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      setUploadingPayout(prev => ({ ...prev, [`${settlementId}-${consultantId}`]: true }));
-      const uploadRes = await api.post('/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      if (uploadRes.data.success) {
-        const payoutRes = await api.post(`/settlements/admin/${settlementId}/payout`, {
-          consultantId,
-          payoutReceiptFileUrl: uploadRes.data.url
-        });
-
-        if (payoutRes.data.success) {
-          toast.success('Payout receipt uploaded and doctor notified!');
-          
-          // Update local details if viewing modal
-          if (selectedSettlement && selectedSettlement._id === settlementId) {
-            setSelectedSettlement(payoutRes.data.data);
-          }
-          fetchSettlements();
-        }
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to dispatch payout receipt');
-    } finally {
-      setUploadingPayout(prev => ({ ...prev, [`${settlementId}-${consultantId}`]: false }));
-    }
-  };
-
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending_payment':
@@ -122,7 +82,7 @@ const AdminSettlements = () => {
     switch (status) {
       case 'pending_payment': return 'Awaiting Payment Upload';
       case 'pending_admin_verification': return 'Pending Approval';
-      case 'paid_pending_consultant_payout': return 'Disbursing Commissions';
+      case 'paid_pending_consultant_payout': return 'Platfom Cut';
       case 'paid_pending_consultant_verification': return 'Pending Doctor Sign-offs';
       case 'completed': return 'Fully Completed';
       default: return status;
@@ -391,133 +351,21 @@ const AdminSettlements = () => {
                 </div>
               )}
 
-              {/* Consultant payouts detail panel: Admin uploads payout screenshots */}
+              {/* Referring doctor(s) on this settlement */}
               {selectedSettlement.consultantPayouts?.length > 0 && (
                 <div className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-5 transition-colors">
-                  <h4 className="text-xs font-black text-slate-450 dark:text-slate-500 uppercase tracking-widest">Manual Doctor Payout Approvals Grid</h4>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 -mt-1 leading-normal">Transfer commissions manually to each doctor's preferred account. Then upload payout transfer screenshots.</p>
-                  
-                  <div className="space-y-4">
-                    {selectedSettlement.consultantPayouts.map(pay => {
-                      const uploadKey = `${selectedSettlement._id}-${pay.consultantId._id}`;
-                      const isUploading = uploadingPayout[uploadKey];
-                      const payoutAccount = pay.consultantId?.userId?.payoutAccount || {};
-                      
-                      return (
-                        <div 
-                          key={pay._id} 
-                          className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-850 p-4 rounded-xl space-y-3 transition-colors"
-                        >
-                          {/* Top part: Consultant name, commission share */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-850 pb-2 transition-colors">
-                            <div>
-                              <p className="font-extrabold text-slate-850 dark:text-slate-250">
-                                Dr. {pay.consultantId?.userId?.name || 'Physician'}
-                              </p>
-                              <p className="text-[10px] font-bold font-mono text-indigo-500 dark:text-indigo-400 mt-0.5">
-                                PMDC: {pay.consultantId?.pmdcNumber}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-xs font-black text-indigo-650 dark:text-indigo-400 tabular-nums">
-                                Share: {formatPkr(pay.amountPaisa)}
-                              </span>
-                              {/* <span className="text-[10px] text-slate-400 block mt-0.5">Commission Rate: {pay.commissionPercentage}%</span> */}
-                            </div>
-                          </div>
-
-                          {/* Bank details panel */}
-                          <div className="bg-white/85 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 rounded-lg grid grid-cols-2 gap-3 text-xs leading-normal transition-colors">
-                            <div>
-                              <span className="text-slate-400 font-bold block text-[10px] uppercase">Preferred Account Type</span>
-                              <span className="font-bold text-slate-700 dark:text-slate-300 capitalize">{payoutAccount.accountType || 'JazzCash'}</span>
-                            </div>
-                            {payoutAccount.bankName && (
-                              <div>
-                                <span className="text-slate-400 font-bold block text-[10px] uppercase">Bank Name</span>
-                                <span className="font-bold text-slate-700 dark:text-slate-300">{payoutAccount.bankName}</span>
-                              </div>
-                            )}
-                            <div>
-                              <span className="text-slate-400 font-bold block text-[10px] uppercase">Account Title</span>
-                              <span className="font-bold text-slate-700 dark:text-slate-300">{payoutAccount.accountHolder || 'N/A'}</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-400 font-bold block text-[10px] uppercase">Account Number / Wallet</span>
-                              <span className="font-extrabold text-indigo-600 dark:text-indigo-400 font-mono select-all">{payoutAccount.accountNumber || 'N/A'}</span>
-                            </div>
-                          </div>
-
-                          {/* Action area: Upload receipt proof */}
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                            <div>
-                              {pay.status === 'pending_payout' && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold text-[9px] uppercase tracking-wider">
-                                  Payout Needed
-                                </span>
-                              )}
-                              {pay.status === 'pending_verification' && (
-                                <div className="space-y-1">
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold text-[9px] uppercase tracking-wider animate-pulse">
-                                    Proof Dispatched, Awaiting Doctor
-                                  </span>
-                                  {pay.payoutReceiptFileUrl && (
-                                    <a href={pay.payoutReceiptFileUrl} target="_blank" rel="noreferrer" className="text-[10px] text-indigo-500 font-bold block underline hover:text-indigo-700">
-                                      View Uploaded Transfer Proof
-                                    </a>
-                                  )}
-                                  <label className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">
-                                    <Upload size={11} /> {isUploading ? 'Uploading...' : 'Re-upload receipt'}
-                                    <input
-                                      type="file"
-                                      accept=".pdf,.png,.jpg,.jpeg"
-                                      onChange={e => handleUploadPayoutReceipt(selectedSettlement._id, pay.consultantId._id, e.target.files[0])}
-                                      disabled={isUploading}
-                                      className="hidden"
-                                    />
-                                  </label>
-                                </div>
-                              )}
-                              {pay.status === 'verified' && (
-                                <div className="space-y-1">
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 font-bold text-[9px] uppercase tracking-wider">
-                                    Verified & Confirmed by Doctor
-                                  </span>
-                                  {pay.payoutReceiptFileUrl && (
-                                    <a href={pay.payoutReceiptFileUrl} target="_blank" rel="noreferrer" className="text-[10px] text-indigo-500 font-bold block underline hover:text-indigo-700">
-                                      View Uploaded Transfer Proof
-                                    </a>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Uploader */}
-                            {pay.status === 'pending_payout' && (
-                              <div>
-                                {['paid_pending_consultant_payout', 'paid_pending_consultant_verification'].includes(selectedSettlement.status) ? (
-                                  <label className="flex items-center justify-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-lg shadow-sm cursor-pointer transition-colors active:scale-95">
-                                    <Upload size={13} />
-                                    {isUploading ? 'Uploading...' : 'Attach Transfer Receipt'}
-                                    <input
-                                      type="file"
-                                      accept=".pdf,.png,.jpg,.jpeg"
-                                      onChange={e => handleUploadPayoutReceipt(selectedSettlement._id, pay.consultantId._id, e.target.files[0])}
-                                      disabled={isUploading}
-                                      className="hidden"
-                                    />
-                                  </label>
-                                ) : (
-                                  <span className="text-[10px] text-slate-400 italic font-bold text-right block">
-                                    Verify hospital payment first to unlock upload
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <h4 className="text-xs font-black text-slate-450 dark:text-slate-500 uppercase tracking-widest">Referred By</h4>
+                  <div className="space-y-2">
+                    {selectedSettlement.consultantPayouts.map((pay) => (
+                      <div
+                        key={pay._id}
+                        className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-100 dark:border-slate-850 px-4 py-3 rounded-xl transition-colors"
+                      >
+                        <p className="font-extrabold text-slate-850 dark:text-slate-250">
+                          {pay.consultantId?.userId?.name || 'Physician'}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

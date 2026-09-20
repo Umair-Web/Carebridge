@@ -611,7 +611,14 @@ const AdminConsultants = () => {
                   </h4>
                   <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl">
                     <Field label="Full Name" value={profileData.user.name} />
-                    <Field label="PMDC Number" value={profileData.profile.pmdcNumber} />
+                    <Field
+                      label="PMDC Number"
+                      value={
+                        /^refused/i.test(profileData.profile.pmdcNumber || '')
+                          ? 'Refused by the doctor'
+                          : profileData.profile.pmdcNumber
+                      }
+                    />
                     <Field label="Specialization" value={profileData.profile.specialty} />
                     <Field label="City" value={profileData.profile.city || 'Karachi'} />
                     <Field label="Contact Phone" value={profileData.user.phone} />

@@ -129,8 +129,11 @@ exports.register = async (req, res) => {
     });
 
     if (role === 'consultant') {
-      const pmdc = String(req.body.pmdcNumber || '').trim();
-      if (!pmdc || /^pending-/i.test(pmdc)) {
+      const pmdcRaw = String(req.body.pmdcNumber || '').trim();
+      const pmdcRefused = /^refused$/i.test(pmdcRaw);
+      // Unique index on pmdcNumber — suffix refused values so multiple doctors can decline
+      const pmdc = pmdcRefused ? `Refused-${user._id}` : pmdcRaw;
+      if (!pmdcRaw || /^pending-/i.test(pmdcRaw)) {
         await User.deleteOne({ _id: user._id });
         return res.status(400).json({ success: false, message: 'Valid PMDC number is required' });
       }
@@ -152,10 +155,12 @@ exports.register = async (req, res) => {
         return res.status(400).json({ success: false, message: 'CNIC document upload is required' });
       }
 
-      const dupPmdc = await Consultant.findOne({ pmdcNumber: pmdc });
-      if (dupPmdc) {
-        await User.deleteOne({ _id: user._id });
-        return res.status(400).json({ success: false, message: 'PMDC number already registered' });
+      if (!pmdcRefused) {
+        const dupPmdc = await Consultant.findOne({ pmdcNumber: pmdc });
+        if (dupPmdc) {
+          await User.deleteOne({ _id: user._id });
+          return res.status(400).json({ success: false, message: 'PMDC number already registered' });
+        }
       }
 
       // Optional geo (auto-detected location)

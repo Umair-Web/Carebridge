@@ -15,7 +15,7 @@ const SUBTABS = [
   { key: 'labs', label: 'Labs', icon: FlaskConical },
   { key: 'referrals', label: 'Lab Referrals', icon: ClipboardList },
   { key: 'settlements', label: 'Settlements', icon: Receipt },
-  { key: 'payouts', label: 'Payouts', icon: Wallet },
+  // { key: 'payouts', label: 'Payouts', icon: Wallet },
 ];
 
 const uploadFile = async (file) => {
@@ -468,8 +468,7 @@ const LabsPanel = () => {
   return (
     <div className="space-y-4">
       <p className="text-xs text-slate-500">
-        View details requires the <span className="font-semibold">admin lab-access password</span> (default{' '}
-        <span className="font-mono text-slate-700 dark:text-slate-300">123456</span>) — not the laboratory portal login.
+        View details requires the <span className="font-semibold">admin lab-access password </span> — not the laboratory portal login.
       </p>
       <div className="flex gap-2">
         {['', 'pending', 'active', 'suspended'].map((s) => (
@@ -642,8 +641,7 @@ const ReferralsPanel = () => {
   return (
     <div className="space-y-4">
       <p className="text-xs text-slate-500">
-        View details requires the <span className="font-semibold">admin lab-access password</span> (default{' '}
-        <span className="font-mono text-slate-700 dark:text-slate-300">123456</span>) — same password as laboratory profiles.
+        View details requires the <span className="font-semibold">admin lab-access password</span>  — same password as laboratory profiles.
       </p>
       <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-x-auto shadow-sm">
         <table className="min-w-full text-sm">
@@ -656,7 +654,6 @@ const ReferralsPanel = () => {
               <th className="text-left px-4 py-3 font-semibold">Status</th>
               <th className="text-left px-4 py-3 font-semibold">Consultant view</th>
               <th className="text-left px-4 py-3 font-semibold">Bill</th>
-              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -679,15 +676,6 @@ const ReferralsPanel = () => {
                   </span>
                 </td>
                 <td className="px-4 py-3 tabular-nums">{r.billTotalPaisa ? formatPkr(r.billTotalPaisa) : '—'}</td>
-                <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); downloadPdf(`/exports/admin/lab-referrals/${r._id}`, `Lab_Record_${r.referralCode}.pdf`); }}
-                    title="Download record PDF"
-                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-sky-600 transition-colors"
-                  >
-                    <Download size={15} />
-                  </button>
-                </td>
               </tr>
               );
             })}
@@ -884,17 +872,17 @@ const SettlementsPanel = () => {
 
           {['paid_pending_consultant_payout', 'paid_pending_consultant_verification', 'completed'].includes(s.status) && s.consultantPayouts?.length > 0 && (
             <div className="border-t border-slate-50 dark:border-slate-800 pt-3 space-y-2">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Users size={12} /> Consultant Payouts</p>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Users size={12} />Referred By</p>
               {s.consultantPayouts.map((pay) => {
                 const key = `${s._id}-${pay.consultantId?._id || pay.consultantId}`;
                 const cId = pay.consultantId?._id || pay.consultantId;
                 return (
                   <div key={cId} className="flex items-center justify-between gap-3 bg-slate-50/60 dark:bg-slate-950/20 rounded-xl p-3 text-xs">
                     <div>
-                      <p className="font-bold text-slate-700 dark:text-slate-300">Dr. {pay.consultantId?.userId?.name || 'Consultant'}</p>
-                      <p className="text-slate-400">{formatPkr(pay.amountPaisa)} ({pay.commissionPercentage}%)</p>
+                      <p className="font-bold text-slate-700 dark:text-slate-300">{pay.consultantId?.userId?.name || 'Consultant'}</p>
+                      {/* <p className="text-slate-400">{formatPkr(pay.amountPaisa)} ({pay.commissionPercentage}%)</p> */}
                     </div>
-                    {pay.status === 'verified' ? (
+                    {/* {pay.status === 'verified' ? (
                       <span className="inline-flex items-center gap-1 text-emerald-600 font-bold"><CheckCircle2 size={13} /> Verified</span>
                     ) : pay.status === 'pending_verification' ? (
                       <div className="flex items-center gap-3">
@@ -912,7 +900,7 @@ const SettlementsPanel = () => {
                         <Upload size={12} /> {busy[key] ? 'Uploading…' : 'Upload payout'}
                         <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(ev) => uploadPayout(s._id, cId, ev.target.files[0])} className="hidden" />
                       </label>
-                    )}
+                    )} */}
                   </div>
                 );
               })}
@@ -974,7 +962,6 @@ const AdminLaboratory = () => {
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Approve labs, set economics, oversee referrals, settlements, and payouts.</p>
         </div>
       </div>
-
       <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-fit">
         {SUBTABS.map((t) => {
           const Icon = t.icon;

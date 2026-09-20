@@ -810,7 +810,7 @@ const AdminHospitals = () => {
                       <p className="text-xs font-bold text-slate-800">What this hospital pays the platform</p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
                         Fixed price per referral. It applies to every patient at this hospital. The hospital's weekly total is this
-                        platform charge <span className="font-semibold">plus</span> each consultant's commission.
+                        platform charge.
                         {/* Choose one type — a percentage of each bill, or a fixed price per referral. */}
                       </p>
                     </div>
@@ -872,7 +872,7 @@ const AdminHospitals = () => {
                   </div>
                   <p className="text-[11px] text-slate-500 mb-3">
                     Optionally charge <span className="font-semibold">certain consultants</span> a different fixed platform fee for
-                    their referrals to this hospital. The doctor's commission never changes — only the platform fee (and so the
+                    their referrals to this hospital. Only the platform fee (and so the
                     hospital's total) differs. Consultants without a special fee keep the hospital default above. Applies to new
                     referrals only.
                   </p>

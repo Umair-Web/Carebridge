@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import { ArrowLeft, FileCheck, Eye, EyeOff, MapPin } from 'lucide-react';
 import api from '../utils/api';
 import PolicyAgreement from '../components/PolicyAgreement';
+import SpecialtySearchSelect from '../components/SpecialtySearchSelect';
+import { DEFAULT_SPECIALTY } from '../utils/specialties';
 
 const ConsultantRegister = () => {
   const [formData, setFormData] = useState({
@@ -14,7 +16,7 @@ const ConsultantRegister = () => {
     password: '',
     pmdcNumber: '',
     cnic: '',
-    specialty: 'General Physician',
+    specialty: DEFAULT_SPECIALTY,
     clinicName: '',
     clinicAddress: '',
     lat: '',
@@ -22,6 +24,7 @@ const ConsultantRegister = () => {
     role: 'consultant'
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [pmdcRefused, setPmdcRefused] = useState(false);
   const [verificationDocuments, setVerificationDocuments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [agreedToPolicy, setAgreedToPolicy] = useState(false);
@@ -147,19 +150,41 @@ const ConsultantRegister = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">PMDC Number</label>
-              <input name="pmdcNumber" type="text" required value={formData.pmdcNumber} onChange={handleChange}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
-                placeholder="12345-P" />
+              <input
+                name="pmdcNumber"
+                type="text"
+                required
+                value={formData.pmdcNumber}
+                onChange={handleChange}
+                disabled={pmdcRefused}
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
+                placeholder="12345-P"
+              />
+              <label className="mt-2 flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={pmdcRefused}
+                  onChange={(e) => {
+                    const refused = e.target.checked;
+                    setPmdcRefused(refused);
+                    setFormData((prev) => ({
+                      ...prev,
+                      pmdcNumber: refused ? 'Refused' : '',
+                    }));
+                  }}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-xs text-slate-600">I refuse to provide my PMDC number</span>
+              </label>
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Specialty</label>
-              <select name="specialty" value={formData.specialty} onChange={handleChange}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm bg-white">
-                <option value="General Physician">General Physician</option>
-                <option value="Cardiologist">Cardiologist</option>
-                <option value="Neurologist">Neurologist</option>
-                <option value="Orthopedic">Orthopedic</option>
-              </select>
+              <SpecialtySearchSelect
+                name="specialty"
+                required
+                value={formData.specialty}
+                onChange={handleChange}
+              />
             </div>
           </div>
 

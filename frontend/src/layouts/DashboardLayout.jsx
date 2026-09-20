@@ -147,7 +147,8 @@ const DashboardLayout = () => {
             </NavLink>
             <NavLink to="/admin/consultants" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Consultants</NavLink>
             <NavLink to="/admin/hospitals" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Hospitals</NavLink>
-            {/* <NavLink to="/admin/payouts" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Payouts</NavLink> */}
+            {/* <NavLink to="/admin/payouts" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Payouts</NavLink> */}ls
+            
             <NavLink to="/admin/settlements" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Settlements</NavLink>
             <NavLink to="/admin/settings" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Setup</NavLink>
             <NavLink to="/admin/audit" className={({ isActive }) => mobileNavClass(isActive)} style={({ isActive }) => mobileNavStyle(isActive)}>Audit</NavLink>
