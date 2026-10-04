@@ -36,6 +36,16 @@ const PlatformSettingsSchema = new mongoose.Schema(
      * Not the hospital portal login. Default plaintext on first use: 123456.
      */
     adminHospitalProfileAccessPasswordHash: { type: String },
+    /**
+     * Admin-only password to unlock the Settlements Queue page.
+     * Default plaintext on first use: Adminsettly123?
+     */
+    adminSettlementsPageAccessPasswordHash: { type: String },
+    /**
+     * Admin-only password to unlock the Laboratory admin page.
+     * Default plaintext on first use: Labsettly123?
+     */
+    adminLaboratoryPageAccessPasswordHash: { type: String },
   },
   { timestamps: true }
 );

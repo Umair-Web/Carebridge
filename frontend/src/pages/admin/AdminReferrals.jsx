@@ -307,21 +307,12 @@ const AdminReferrals = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="inline-flex items-center gap-1">
-                        <button
-                          onClick={() => requestView(ref)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
-                        >
-                          <Eye className="w-3.5 h-3.5" /> Details
-                        </button>
-                        <button
-                          onClick={() => downloadPdf(`/exports/admin/referrals/${ref._id}`, `Patient_Record_${ref.referralCode}.pdf`)}
-                          title="Download patient record PDF"
-                          className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
-                        >
-                          <Download className="w-3.5 h-3.5" /> PDF
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => requestView(ref)}
+                        className="inline-flex items-center gap-1 px-3 py-1 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Details
+                      </button>
                     </td>
                   </tr>
                 );
@@ -386,6 +377,17 @@ const AdminReferrals = () => {
                     }`}
                   >
                     {detailsViewAccessOf(selectedRef) === 'active' ? 'Suspend' : 'Activate'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadPdf(
+                      `/exports/admin/referrals/${selectedRef._id}`,
+                      `Patient_Record_${selectedRef.referralCode}.pdf`
+                    )}
+                    title="Download patient record PDF"
+                    className="inline-flex h-9 items-center gap-1.5 px-3 rounded-xl text-xs font-bold whitespace-nowrap bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all"
+                  >
+                    <Download className="w-3.5 h-3.5" /> PDF
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl text-sm border border-slate-100">

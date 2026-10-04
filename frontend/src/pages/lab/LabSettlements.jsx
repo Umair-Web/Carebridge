@@ -61,7 +61,6 @@ const LabSettlements = () => {
   const selectedObjs = pending.filter((r) => selected.includes(r._id));
   const grossPaisa = selectedObjs.reduce((s, r) => s + (r.billTotalPaisa || 0), 0);
   const platformChargePaisa = selectedObjs.reduce((s, r) => s + (r.platformChargePaisa || 0), 0);
-  const commissionPaisa = selectedObjs.reduce((s, r) => s + (r.doctorCommissionPaisa || 0), 0);
   const platformCutPaisa = selectedObjs.reduce((s, r) => s + (r.calculatedPlatformCutPaisa || 0), 0);
 
   const handleReceiptUpload = async (e) => {
@@ -168,11 +167,23 @@ const LabSettlements = () => {
                 <label key={r._id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40">
                   <input type="checkbox" checked={selected.includes(r._id)} onChange={() => toggle(r._id)} className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500" />
                   <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                    <div>
-                      <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400">{r.referralCode}</span>
-                      <span className="text-xs text-slate-500 ml-2">{r.patientName}</span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400">{r.referralCode}</span>
+                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{r.patientName || '—'}</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-slate-500">
+                        {r.consultantId?.promoCode ? (
+                          <span>Promo <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{r.consultantId.promoCode}</span></span>
+                        ) : (
+                          <span className="text-slate-400">No promo code</span>
+                        )}
+                        {r.consultantId?.userId?.name && (
+                          <span>· Dr. {r.consultantId.userId.name}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 shrink-0">
                       {r.patientBillFileUrl && (
                         <a
                           href={r.patientBillFileUrl}
@@ -197,7 +208,6 @@ const LabSettlements = () => {
           <div className="bg-slate-900 text-white rounded-xl p-5 space-y-3">
             <div className="flex justify-between border-b border-white/10 pb-3"><span className="text-xs text-slate-400 font-bold">Gross Billed</span><span className="text-lg font-black tabular-nums">{formatPkr(grossPaisa)}</span></div>
             <div className="flex justify-between text-xs"><span className="text-slate-400">Platform Charge</span><span className="font-bold text-slate-200 tabular-nums">{formatPkr(platformChargePaisa)}</span></div>
-            {/* <div className="flex justify-between text-xs"><span className="text-slate-400">Doctor Commission</span><span className="font-bold text-slate-200 tabular-nums">{formatPkr(commissionPaisa)}</span></div> */}
             <div className="flex justify-between border-t border-dashed border-white/10 pt-3"><span className="text-xs text-slate-300 font-black">Total Due to Platform</span><span className="text-xl font-extrabold text-sky-400 tabular-nums">{formatPkr(platformCutPaisa)}</span></div>
           </div>
         )}
@@ -242,12 +252,45 @@ const LabSettlements = () => {
                 {STATUS_BADGE(s.status)}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
                 <div><span className="text-slate-400 font-bold uppercase block mb-0.5">Platform</span><span className="font-bold tabular-nums">{formatPkr(s.platformChargeTotalPaisa ?? s.calculatedPlatformCutPaisa)}</span></div>
-                <div><span className="text-slate-400 font-bold uppercase block mb-0.5">Commission</span><span className="font-bold tabular-nums">{formatPkr(s.doctorCommissionTotalPaisa ?? 0)}</span></div>
                 <div><span className="text-slate-400 font-bold uppercase block mb-0.5">Total Due</span><span className="font-black text-sky-600 dark:text-sky-400 tabular-nums">{formatPkr(s.facilityTotalPayablePaisa ?? s.calculatedPlatformCutPaisa)}</span></div>
                 <div><span className="text-slate-400 font-bold uppercase block mb-0.5">Cases</span><span className="font-bold">{s.labReferralIds?.length || 0}</span></div>
               </div>
+
+              {(s.labReferralIds || []).length > 0 && (
+                <div className="rounded-xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+                  {(s.labReferralIds || []).filter(Boolean).map((r) => (
+                    <div key={r._id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-xs">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2">
+                          <span className="font-mono font-bold text-sky-600 dark:text-sky-400">{r.referralCode}</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{r.patientName || '—'}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Promo{' '}
+                          <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                            {r.consultantId?.promoCode || '—'}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-bold tabular-nums text-slate-700 dark:text-slate-300">{formatPkr(r.billTotalPaisa)}</span>
+                        {r.patientBillFileUrl && (
+                          <a
+                            href={r.patientBillFileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 font-bold text-sky-600 dark:text-sky-400 hover:underline"
+                          >
+                            <FileText size={13} /> Bill
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {s.rejectionReason && (
                 <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-xl flex gap-2 text-xs text-red-700 dark:text-red-400">
@@ -267,9 +310,6 @@ const LabSettlements = () => {
               )}
 
               <div className="flex flex-wrap gap-3 text-xs pt-1">
-                {(s.labReferralIds || []).filter((r) => r && r.patientBillFileUrl).map((r) => (
-                  <a key={r._id} href={r.patientBillFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800"><FileText size={13} className="text-sky-600" /> Bill · {r.referralCode}</a>
-                ))}
                 {s.billSummaryFileUrl && <a href={s.billSummaryFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800"><FileText size={13} className="text-sky-600" /> Bill Summary</a>}
                 {s.labReceiptFileUrl && <a href={s.labReceiptFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg font-bold hover:bg-slate-50 dark:hover:bg-slate-800"><FileText size={13} className="text-sky-600" /> Payment Receipt</a>}
               </div>

@@ -21,7 +21,7 @@ exports.listPendingReferrals = async (req, res) => {
       status: 'closed',
       weeklySettlementId: null,
     })
-      .populate({ path: 'consultantId', populate: { path: 'userId', select: 'name email' } })
+      .populate({ path: 'consultantId', select: 'promoCode', populate: { path: 'userId', select: 'name email' } })
       .sort({ completedAt: -1 });
 
     // Read the immutable LabPayout snapshot so the preview == the final settled amount.
@@ -227,7 +227,11 @@ exports.listLabSettlements = async (req, res) => {
     }
 
     const settlements = await LabSettlement.find({ laboratoryId: lab._id })
-      .populate('labReferralIds', 'referralCode billTotalPaisa status completedAt patientBillFileUrl')
+      .populate({
+        path: 'labReferralIds',
+        select: 'referralCode patientName billTotalPaisa status completedAt patientBillFileUrl consultantId',
+        populate: { path: 'consultantId', select: 'promoCode' },
+      })
       .populate({ path: 'consultantPayouts.consultantId', populate: { path: 'userId', select: 'name payoutAccount' } })
       .sort({ createdAt: -1 });
 
@@ -258,8 +262,12 @@ exports.adminListSettlements = async (req, res) => {
   try {
     const settlements = await LabSettlement.find()
       .populate('laboratoryId', 'labName deductionPercentage')
-      .populate('labReferralIds', 'billTotalPaisa completedAt patientBillFileUrl referralCode')
-      .populate({ path: 'consultantPayouts.consultantId', populate: { path: 'userId', select: 'name payoutAccount' } })
+      .populate({
+        path: 'labReferralIds',
+        select: 'billTotalPaisa completedAt patientBillFileUrl referralCode patientName consultantId',
+        populate: { path: 'consultantId', select: 'promoCode', populate: { path: 'userId', select: 'name' } },
+      })
+      .populate({ path: 'consultantPayouts.consultantId', select: 'promoCode', populate: { path: 'userId', select: 'name payoutAccount' } })
       .sort({ createdAt: -1 });
 
     res.json({ success: true, data: settlements });

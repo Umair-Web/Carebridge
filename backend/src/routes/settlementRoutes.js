@@ -13,6 +13,7 @@ router.post('/:id/upload-receipt', authorize(['hospital']), settlementController
 router.get('/hospital', authorize(['hospital']), settlementController.listHospitalSettlements);
 
 // Admin Roles
+router.post('/admin/verify-page-access', authorize(['admin']), settlementController.verifySettlementsPageAccess);
 router.get('/admin', authorize(['admin']), settlementController.adminListSettlements);
 router.post('/admin/:id/verify', authorize(['admin']), settlementController.adminVerifyHospitalReceipt);
 router.post('/admin/:id/payout', authorize(['admin']), settlementController.adminUploadConsultantPayout);

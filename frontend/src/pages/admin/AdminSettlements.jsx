@@ -1,14 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   Receipt, FileText, CheckCircle2, AlertCircle, Landmark, 
-  ExternalLink, Eye, ArrowRight, UserCheck, XCircle, Search, CreditCard 
+  ExternalLink, Eye, ArrowRight, UserCheck, XCircle, Search, CreditCard, Lock 
 } from 'lucide-react';
 import api from '../../utils/api';
 import { formatPkr } from '../../utils/formatPkr';
 import toast from 'react-hot-toast';
 import Loader from '../../components/Loader';
 
+const SETTLEMENTS_PAGE_UNLOCK_KEY = 'admin_settlements_page_unlock';
+
 const AdminSettlements = () => {
+  const [pageUnlocked, setPageUnlocked] = useState(() => !!sessionStorage.getItem(SETTLEMENTS_PAGE_UNLOCK_KEY));
+  const [pagePassword, setPagePassword] = useState('');
+  const [unlockingPage, setUnlockingPage] = useState(false);
+
   const [settlements, setSettlements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -34,8 +40,31 @@ const AdminSettlements = () => {
   }, []);
 
   useEffect(() => {
-    fetchSettlements();
-  }, [fetchSettlements]);
+    if (pageUnlocked) fetchSettlements();
+  }, [fetchSettlements, pageUnlocked]);
+
+  const handlePageUnlock = async (e) => {
+    e.preventDefault();
+    if (!pagePassword.trim()) {
+      return toast.error('Enter settlements access password');
+    }
+    setUnlockingPage(true);
+    try {
+      const res = await api.post('/settlements/admin/verify-page-access', { password: pagePassword });
+      if (!res.data.success) {
+        return toast.error(res.data.message || 'Incorrect password');
+      }
+      const token = res.data.data?.unlockToken;
+      if (token) sessionStorage.setItem(SETTLEMENTS_PAGE_UNLOCK_KEY, token);
+      setPageUnlocked(true);
+      setPagePassword('');
+      toast.success('Access granted');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Incorrect access password');
+    } finally {
+      setUnlockingPage(false);
+    }
+  };
 
   // Handle Approve or Reject Hospital Receipt
   const handleVerifyHospitalReceipt = async (settlementId, action) => {
@@ -93,6 +122,44 @@ const AdminSettlements = () => {
     s.hospitalId?.hospitalName?.toLowerCase().includes(search.toLowerCase()) ||
     s.status?.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (!pageUnlocked) {
+    return (
+      <div className="max-w-md mx-auto mt-16 animate-in fade-in duration-500">
+        <form onSubmit={handlePageUnlock} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 shadow-xl space-y-5">
+          <div className="flex items-start gap-3">
+            <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+              <Lock size={22} />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 dark:text-slate-50">Settlements access</h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Enter the settlements page password to view the queue and settlement details.
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Access password</label>
+            <input
+              type="password"
+              autoFocus
+              value={pagePassword}
+              onChange={(e) => setPagePassword(e.target.value)}
+              placeholder="Enter access password"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={unlockingPage}
+            className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm disabled:opacity-50"
+          >
+            {unlockingPage ? 'Verifying…' : 'Unlock Settlements'}
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   if (loading && settlements.length === 0) {
     return <Loader message="Accessing manual settlements approvals queue..." />;
@@ -270,28 +337,43 @@ const AdminSettlements = () => {
                 </div>
               </div>
 
-              {/* Individual Patient Bills */}
+              {/* Cases in this settlement */}
               {selectedSettlement.admissionIds?.length > 0 && (
                 <div className="space-y-3 pt-3">
-                  <h4 className="text-xs font-black text-slate-450 dark:text-slate-500 uppercase tracking-widest">Individual Patient Bills</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {selectedSettlement.admissionIds.map(adm => (
-                      <div key={adm._id} className="p-3 bg-slate-50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 rounded-xl">
-                        <div className="flex justify-between items-center mb-2">
-                           <span className="font-bold text-xs text-slate-700 dark:text-slate-300">Patient: {adm.referralId?.patientName || 'Unknown'}</span>
-                           <span className="font-mono text-[10px] text-slate-500">{adm.referralId?.referralCode}</span>
+                  <h4 className="text-xs font-black text-slate-450 dark:text-slate-500 uppercase tracking-widest">Cases in this settlement</h4>
+                  <div className="rounded-xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+                    {selectedSettlement.admissionIds.map((adm) => {
+                      const ref = adm.referralId;
+                      const promo = ref?.promoCode || ref?.consultantId?.promoCode || '—';
+                      return (
+                        <div key={adm._id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-xs">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-x-2">
+                              <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{ref?.referralCode || '—'}</span>
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">{ref?.patientName || '—'}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Promo <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{promo}</span>
+                              {ref?.consultantId?.userId?.name ? ` · Dr. ${ref.consultantId.userId.name}` : ''}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {adm.patientBillFileUrl ? (
+                              <a
+                                href={adm.patientBillFileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                              >
+                                <FileText size={13} /> Bill
+                              </a>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">No bill</span>
+                            )}
+                          </div>
                         </div>
-                        {adm.patientBillFileUrl ? (
-                          <a href={adm.patientBillFileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[11px] font-bold text-indigo-500 hover:text-indigo-700 underline">
-                            <FileText size={14} /> View Patient Receipt
-                          </a>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 italic flex items-center gap-1">
-                            <AlertCircle size={12} /> No receipt uploaded
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -364,6 +446,11 @@ const AdminSettlements = () => {
                         <p className="font-extrabold text-slate-850 dark:text-slate-250">
                           {pay.consultantId?.userId?.name || 'Physician'}
                         </p>
+                        {pay.consultantId?.promoCode && (
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Promo <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{pay.consultantId.promoCode}</span>
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>

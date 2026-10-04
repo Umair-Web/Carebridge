@@ -7,6 +7,26 @@ const Consultant = require('../models/Consultant');
 const { logAction } = require('../utils/logger');
 const User = require('../models/User');
 const notificationService = require('../services/notificationService');
+const PlatformSettings = require('../models/PlatformSettings');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+const DEFAULT_ADMIN_SETTLEMENTS_PAGE_PASSWORD = 'Adminsettly123?';
+
+async function ensureAdminSettlementsPagePassword() {
+  let settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
+  if (!settings) {
+    settings = await PlatformSettings.create({});
+  }
+  if (!settings.adminSettlementsPageAccessPasswordHash) {
+    settings.adminSettlementsPageAccessPasswordHash = await bcrypt.hash(
+      DEFAULT_ADMIN_SETTLEMENTS_PAGE_PASSWORD,
+      10
+    );
+    await settings.save();
+  }
+  return settings;
+}
 
 // 1. List admissions eligible for weekly settlement (Billed and not settled)
 exports.listPendingAdmissions = async (req, res) => {
@@ -262,10 +282,23 @@ exports.adminListSettlements = async (req, res) => {
   try {
     const settlements = await WeeklySettlement.find()
       .populate('hospitalId', 'hospitalName deductionPercentage')
-      .populate('admissionIds', 'billTotalPaisa completedAt patientBillFileUrl referralId')
+      .populate({
+        path: 'admissionIds',
+        select: 'billTotalPaisa completedAt patientBillFileUrl referralId',
+        populate: {
+          path: 'referralId',
+          select: 'patientName referralCode promoCode consultantId',
+          populate: {
+            path: 'consultantId',
+            select: 'promoCode',
+            populate: { path: 'userId', select: 'name' },
+          },
+        },
+      })
       .populate({
         path: 'consultantPayouts.consultantId',
-        populate: { path: 'userId', select: 'name payoutAccount' }
+        select: 'promoCode',
+        populate: { path: 'userId', select: 'name payoutAccount' },
       })
       .sort({ createdAt: -1 });
 
@@ -498,6 +531,40 @@ exports.consultantVerifyPayout = async (req, res) => {
   } catch (error) {
     console.error('[CONSULTANT_VERIFY_PAYOUT_ERROR]', error);
     res.status(500).json({ success: false, message: 'Failed to verify payout' });
+  }
+};
+
+/** Verify admin Settlements Queue page-access password. */
+exports.verifySettlementsPageAccess = async (req, res) => {
+  try {
+    const password = String(req.body.password || '');
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    const settings = await ensureAdminSettlementsPagePassword();
+    const ok = await bcrypt.compare(password, settings.adminSettlementsPageAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Incorrect access password' });
+    }
+
+    const unlockToken = jwt.sign(
+      {
+        purpose: 'admin_settlements_page_unlock',
+        adminUserId: String(req.user.id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '4h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Access granted',
+      data: { unlockToken, expiresInMinutes: 240 },
+    });
+  } catch (error) {
+    console.error('[ADMIN_VERIFY_SETTLEMENTS_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to verify access password' });
   }
 };
 

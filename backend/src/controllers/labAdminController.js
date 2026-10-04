@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Laboratory = require('../models/Laboratory');
 const LabReferral = require('../models/LabReferral');
 const LabPayout = require('../models/LabPayout');
+const LabSettlement = require('../models/LabSettlement');
 const Consultant = require('../models/Consultant');
 const User = require('../models/User');
 const PlatformSettings = require('../models/PlatformSettings');
@@ -13,6 +14,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const DEFAULT_ADMIN_LAB_ACCESS_PASSWORD = '123456';
+const DEFAULT_ADMIN_LABORATORY_PAGE_PASSWORD = 'Labsettly123?';
 
 async function ensureAdminLabAccessPassword() {
   let settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
@@ -21,6 +23,21 @@ async function ensureAdminLabAccessPassword() {
   }
   if (!settings.adminLabProfileAccessPasswordHash) {
     settings.adminLabProfileAccessPasswordHash = await bcrypt.hash(DEFAULT_ADMIN_LAB_ACCESS_PASSWORD, 10);
+    await settings.save();
+  }
+  return settings;
+}
+
+async function ensureAdminLaboratoryPagePassword() {
+  let settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
+  if (!settings) {
+    settings = await PlatformSettings.create({});
+  }
+  if (!settings.adminLaboratoryPageAccessPasswordHash) {
+    settings.adminLaboratoryPageAccessPasswordHash = await bcrypt.hash(
+      DEFAULT_ADMIN_LABORATORY_PAGE_PASSWORD,
+      10
+    );
     await settings.save();
   }
   return settings;
@@ -529,6 +546,9 @@ exports.updateLabReferral = async (req, res) => {
     if (!referral) {
       return res.status(404).json({ success: false, message: 'Lab referral not found' });
     }
+    if (referral.status === 'closed') {
+      return res.status(400).json({ success: false, message: 'Closed lab referrals cannot be edited' });
+    }
 
     const b = req.body;
     if (b.patientName != null && String(b.patientName).trim()) referral.patientName = String(b.patientName).trim();
@@ -627,5 +647,78 @@ exports.setLabReferralDetailsViewAccess = async (req, res) => {
   } catch (error) {
     console.error('[ADMIN_LAB_REFERRAL_VIEW_ACCESS_ERROR]', error);
     res.status(500).json({ success: false, message: 'Failed to update details view access' });
+  }
+};
+
+/** Admin permanently deletes a lab referral and related payout links. */
+exports.deleteLabReferral = async (req, res) => {
+  try {
+    const referral = await LabReferral.findById(req.params.id);
+    if (!referral) {
+      return res.status(404).json({ success: false, message: 'Lab referral not found' });
+    }
+
+    await LabPayout.deleteMany({ labReferralId: referral._id });
+    await LabSettlement.updateMany(
+      { labReferralIds: referral._id },
+      { $pull: { labReferralIds: referral._id } }
+    );
+    await LabReferral.deleteOne({ _id: referral._id });
+
+    await logAction({
+      actorId: req.user.id,
+      action: 'ADMIN_DELETE_LAB_REFERRAL',
+      entityId: referral._id,
+      entityModel: 'LabReferral',
+      details: {
+        referralCode: referral.referralCode,
+        patientName: referral.patientName,
+        laboratoryId: referral.targetLaboratoryId,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Lab referral and associated payout records deleted successfully.',
+    });
+  } catch (error) {
+    console.error('[ADMIN_DELETE_LAB_REFERRAL_ERROR]', error);
+    res.status(500).json({ success: false, message: 'Failed to delete lab referral' });
+  }
+};
+
+/** Verify admin Laboratory page-access password (unlocks the whole /admin/laboratory module). */
+exports.verifyLaboratoryPageAccess = async (req, res) => {
+  try {
+    const password = String(req.body.password || '');
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    const settings = await ensureAdminLaboratoryPagePassword();
+    const ok = await bcrypt.compare(password, settings.adminLaboratoryPageAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Incorrect access password' });
+    }
+
+    // Reuse lab-profile unlock purpose so detail panels / change-password APIs accept this token.
+    const unlockToken = jwt.sign(
+      {
+        purpose: 'admin_lab_profile_unlock',
+        adminUserId: String(req.user.id),
+        scope: 'laboratory_page',
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '4h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Access granted',
+      data: { unlockToken, expiresInMinutes: 240 },
+    });
+  } catch (error) {
+    console.error('[ADMIN_VERIFY_LABORATORY_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to verify access password' });
   }
 };

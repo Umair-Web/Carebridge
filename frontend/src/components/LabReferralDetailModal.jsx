@@ -48,12 +48,20 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
   const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
   const [accessNewPassword, setAccessNewPassword] = useState('');
   const [savingAccessPw, setSavingAccessPw] = useState(false);
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState(0); // 0 none, 1 confirm
+  const [deleting, setDeleting] = useState(false);
 
   const { data: referral, isLoading, isError, error } = useQuery({
     queryKey: ['lab-referral-detail', referralId],
     queryFn: async () => (await api.get(`/lab-referrals/${referralId}`)).data.data,
     retry: false,
   });
+
+  useEffect(() => {
+    if (referral?.status === 'closed' && editing) {
+      setEditing(false);
+    }
+  }, [referral?.status, editing]);
 
   useEffect(() => {
     if (referral && !form) {
@@ -105,6 +113,11 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
   };
 
   const save = async () => {
+    if (referral?.status === 'closed') {
+      toast.error('Closed lab referrals cannot be edited');
+      setEditing(false);
+      return;
+    }
     try {
       setSaving(true);
       const payload = {
@@ -154,6 +167,66 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
       setSavingAccessPw(false);
     }
   };
+
+  const handleDelete = async () => {
+    if (!editable || !referral?._id) return;
+    if (deleteConfirmStep === 0) {
+      setDeleteConfirmStep(1);
+      return;
+    }
+    setDeleting(true);
+    try {
+      const res = await api.delete(`/admin/labs/referrals/${referral._id}`);
+      if (res.data.success) {
+        toast.success(res.data.message || 'Lab referral deleted');
+        queryClient.invalidateQueries({ queryKey: ['admin-lab-referrals'] });
+        queryClient.invalidateQueries({ queryKey: ['admin-lab-refs'] });
+        queryClient.invalidateQueries({ queryKey: ['my-lab-referrals'] });
+        onSaved?.();
+        onClose?.();
+      } else {
+        toast.error(res.data.message || 'Failed to delete referral');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete referral');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const deleteControls = editable ? (
+    <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+      {deleteConfirmStep === 0 ? (
+        <button
+          type="button"
+          onClick={handleDelete}
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 text-sm font-bold transition-colors"
+        >
+          <Trash2 size={14} /> Remove Referral
+        </button>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold text-red-600">Permanently delete this lab referral?</span>
+          <button
+            type="button"
+            onClick={() => setDeleteConfirmStep(0)}
+            disabled={deleting}
+            className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 text-xs font-bold disabled:opacity-50"
+          >
+            {deleting ? 'Deleting…' : 'Confirm delete'}
+          </button>
+        </div>
+      )}
+    </div>
+  ) : null;
 
   const accessPasswordForm = unlockToken ? (
     <form onSubmit={changeAccessPassword} className="rounded-2xl border border-amber-100 bg-amber-50/40 dark:bg-amber-950/10 p-4 space-y-3">
@@ -207,7 +280,7 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
                 <Download size={13} /> PDF
               </button>
             )}
-            {editable && !editing && referral && (
+            {editable && !editing && referral && referral.status !== 'closed' && (
               <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg"><Pencil size={13} /> Edit</button>
             )}
             <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><X size={18} /></button>
@@ -307,6 +380,8 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
               </section>
             )}
 
+            {deleteControls}
+
             {accessPasswordForm}
           </div>
         ) : (
@@ -344,6 +419,8 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
               <button onClick={() => setEditing(false)} className="px-4 py-2 border border-slate-200 dark:border-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Cancel</button>
               <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-lg disabled:opacity-60"><Save size={16} /> Save</button>
             </div>
+
+            {deleteControls}
 
             {accessPasswordForm}
           </div>

@@ -347,7 +347,7 @@ const LabDetailModal = ({ labId, unlockToken, onClose, onSaved }) => {
                   {referrals.map((r) => (
                     <div key={r._id} onClick={() => setReferralDetailId(r._id)} className="flex items-center justify-between gap-2 px-4 py-2.5 text-xs cursor-pointer hover:bg-sky-50/50 dark:hover:bg-sky-950/10">
                       <div><span className="font-mono font-bold text-sky-600">{r.referralCode}</span><span className="text-slate-600 dark:text-slate-300 ml-2">{r.patientName}</span></div>
-                      <div className="flex items-center gap-3"><span className="capitalize font-bold text-slate-500">{r.status}</span><span className="tabular-nums font-bold">{r.billTotalPaisa ? formatPkr(r.billTotalPaisa) : '—'}</span></div>
+                      <div className="flex items-center gap-3"><span className="capitalize font-bold text-slate-500">{r.status}</span></div>
                     </div>
                   ))}
                 </div>
@@ -653,7 +653,6 @@ const ReferralsPanel = () => {
               <th className="text-left px-4 py-3 font-semibold">Lab</th>
               <th className="text-left px-4 py-3 font-semibold">Status</th>
               <th className="text-left px-4 py-3 font-semibold">Consultant view</th>
-              <th className="text-left px-4 py-3 font-semibold">Bill</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -675,7 +674,6 @@ const ReferralsPanel = () => {
                     {access}
                   </span>
                 </td>
-                <td className="px-4 py-3 tabular-nums">{r.billTotalPaisa ? formatPkr(r.billTotalPaisa) : '—'}</td>
               </tr>
               );
             })}
@@ -769,7 +767,7 @@ const SETTLEMENT_STATUS = {
     hint: 'The lab uploaded a payment receipt — review it below, then approve or reject.',
   },
   paid_pending_consultant_payout: {
-    label: 'Pay Consultants',
+    label: 'Finalize Settlement',
     cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400',
     hint: 'Payment verified. Upload a payout receipt for each consultant below.',
   },
@@ -785,15 +783,45 @@ const SETTLEMENT_STATUS = {
   },
 };
 
+const LAB_SETTLEMENTS_UNLOCK_KEY = 'admin_lab_settlements_unlock';
+
 // ── Settlements queue ───────────────────────────────────────────────────────────
 const SettlementsPanel = () => {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState({});
+  const [unlocked, setUnlocked] = useState(() => !!sessionStorage.getItem(LAB_SETTLEMENTS_UNLOCK_KEY));
+  const [password, setPassword] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+
   const { data: settlements = [], isLoading } = useQuery({
     queryKey: ['admin-lab-settlements'],
     queryFn: async () => (await api.get('/lab-settlements/admin')).data.data,
+    enabled: unlocked,
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['admin-lab-settlements'] });
+
+  const handleUnlock = async (e) => {
+    e.preventDefault();
+    if (!password.trim()) {
+      return toast.error('Enter lab settlements access password');
+    }
+    setUnlocking(true);
+    try {
+      const res = await api.post('/admin/labs/verify-page-access', { password });
+      if (!res.data.success) {
+        return toast.error(res.data.message || 'Incorrect password');
+      }
+      const token = res.data.data?.unlockToken;
+      if (token) sessionStorage.setItem(LAB_SETTLEMENTS_UNLOCK_KEY, token);
+      setUnlocked(true);
+      setPassword('');
+      toast.success('Access granted');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Incorrect access password');
+    } finally {
+      setUnlocking(false);
+    }
+  };
 
   const verify = async (id, action) => {
     let rejectionReason;
@@ -829,6 +857,44 @@ const SettlementsPanel = () => {
     }
   };
 
+  if (!unlocked) {
+    return (
+      <div className="max-w-md mx-auto mt-8 animate-in fade-in duration-500">
+        <form onSubmit={handleUnlock} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 shadow-xl space-y-5">
+          <div className="flex items-start gap-3">
+            <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+              <Lock size={22} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 dark:text-slate-50">Lab settlements access</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                Enter the lab settlements password to view settlement details.
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Access password</label>
+            <input
+              type="password"
+              autoFocus
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter access password"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={unlocking}
+            className="w-full py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm disabled:opacity-50"
+          >
+            {unlocking ? 'Verifying…' : 'Unlock Settlements'}
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   if (isLoading) return <Loader message="Loading lab settlements..." />;
 
   if (settlements.length === 0) return <p className="text-sm text-slate-400 py-8 text-center">No lab settlements.</p>;
@@ -855,10 +921,42 @@ const SettlementsPanel = () => {
             <div><span className="text-slate-400 font-bold uppercase block">Deduction</span><span className="font-bold">{s.deductionPercentage}%</span></div>
           </div>
 
+          {(s.labReferralIds || []).filter(Boolean).length > 0 && (
+            <div className="rounded-xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+              {(s.labReferralIds || []).filter(Boolean).map((r) => (
+                <div key={r._id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-xs">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2">
+                      <span className="font-mono font-bold text-sky-600 dark:text-sky-400">{r.referralCode}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">{r.patientName || '—'}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Promo{' '}
+                      <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                        {r.consultantId?.promoCode || '—'}
+                      </span>
+                      {r.consultantId?.userId?.name ? ` · Dr. ${r.consultantId.userId.name}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="font-bold tabular-nums text-slate-700 dark:text-slate-300">{formatPkr(r.billTotalPaisa)}</span>
+                    {r.patientBillFileUrl && (
+                      <a
+                        href={r.patientBillFileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-bold text-sky-600 dark:text-sky-400 hover:underline"
+                      >
+                        <FileText size={12} /> Bill
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
-            {(s.labReferralIds || []).filter((r) => r && r.patientBillFileUrl).map((r) => (
-              <a key={r._id} href={r.patientBillFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800"><FileText size={12} className="text-sky-600" /> Bill · {r.referralCode}</a>
-            ))}
             {s.billSummaryFileUrl && <a href={s.billSummaryFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800"><FileText size={12} className="text-sky-600" /> Bill Summary</a>}
             {s.labReceiptFileUrl && <a href={s.labReceiptFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800"><FileText size={12} className="text-sky-600" /> Payment Receipt</a>}
           </div>
@@ -874,33 +972,17 @@ const SettlementsPanel = () => {
             <div className="border-t border-slate-50 dark:border-slate-800 pt-3 space-y-2">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><Users size={12} />Referred By</p>
               {s.consultantPayouts.map((pay) => {
-                const key = `${s._id}-${pay.consultantId?._id || pay.consultantId}`;
                 const cId = pay.consultantId?._id || pay.consultantId;
                 return (
                   <div key={cId} className="flex items-center justify-between gap-3 bg-slate-50/60 dark:bg-slate-950/20 rounded-xl p-3 text-xs">
                     <div>
                       <p className="font-bold text-slate-700 dark:text-slate-300">{pay.consultantId?.userId?.name || 'Consultant'}</p>
-                      {/* <p className="text-slate-400">{formatPkr(pay.amountPaisa)} ({pay.commissionPercentage}%)</p> */}
+                      {pay.consultantId?.promoCode && (
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Promo <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{pay.consultantId.promoCode}</span>
+                        </p>
+                      )}
                     </div>
-                    {/* {pay.status === 'verified' ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-600 font-bold"><CheckCircle2 size={13} /> Verified</span>
-                    ) : pay.status === 'pending_verification' ? (
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-amber-600">Paid, awaiting consultant</span>
-                        {pay.payoutReceiptFileUrl && (
-                          <a href={pay.payoutReceiptFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 font-bold hover:underline"><Eye size={12} /> View</a>
-                        )}
-                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-sky-200 dark:border-sky-900/50 text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-950/20 font-bold rounded-lg cursor-pointer">
-                          <Upload size={12} /> {busy[key] ? 'Uploading…' : 'Re-upload'}
-                          <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(ev) => uploadPayout(s._id, cId, ev.target.files[0])} className="hidden" />
-                        </label>
-                      </div>
-                    ) : (
-                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-lg cursor-pointer">
-                        <Upload size={12} /> {busy[key] ? 'Uploading…' : 'Upload payout'}
-                        <input type="file" accept=".pdf,.png,.jpg,.jpeg" onChange={(ev) => uploadPayout(s._id, cId, ev.target.files[0])} className="hidden" />
-                      </label>
-                    )} */}
                   </div>
                 );
               })}
@@ -951,6 +1033,7 @@ const PayoutsPanel = () => {
 
 const AdminLaboratory = () => {
   const [tab, setTab] = useState('labs');
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex items-start gap-3 border-b border-slate-100 dark:border-slate-800 pb-5">
