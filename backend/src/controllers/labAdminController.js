@@ -569,7 +569,18 @@ exports.updateLabReferral = async (req, res) => {
     if (b.summaryNotes != null) referral.summaryNotes = String(b.summaryNotes).trim();
     if (b.symptomsText != null) referral.symptomsText = String(b.symptomsText).trim();
     if (b.notes != null) referral.notes = String(b.notes).trim();
-    if (b.status && ['pending', 'accepted', 'reported', 'closed', 'rejected'].includes(b.status)) referral.status = b.status;
+    if (b.status && ['pending', 'accepted', 'reported', 'closed', 'rejected'].includes(b.status)) {
+      const wasClosed = referral.status === 'closed';
+      referral.status = b.status;
+      if (!wasClosed && b.status === 'closed') {
+        referral.closedAt = referral.closedAt || new Date();
+        referral.completedAt = referral.completedAt || new Date();
+        if (!referral.closedByName) {
+          const { resolveCloserActor, applyCloserToLabReferral } = require('../utils/closerActor');
+          applyCloserToLabReferral(referral, await resolveCloserActor(req.user));
+        }
+      }
+    }
     if (b.rejectionReason != null) referral.rejectionReason = String(b.rejectionReason).trim();
     if (b.expectedReportAt) {
       const d = new Date(b.expectedReportAt);
@@ -720,5 +731,82 @@ exports.verifyLaboratoryPageAccess = async (req, res) => {
   } catch (error) {
     console.error('[ADMIN_VERIFY_LABORATORY_PAGE]', error);
     res.status(500).json({ success: false, message: 'Failed to verify access password' });
+  }
+};
+
+/** Email the logged-in admin a link to reset Lab Settlements page password. */
+exports.forgotLaboratoryPageAccess = async (req, res) => {
+  try {
+    const admin = await User.findById(req.user.id).select('name email role');
+    if (!admin || admin.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin only' });
+    }
+    if (!admin.email) {
+      return res.status(400).json({ success: false, message: 'Your account has no email on file' });
+    }
+
+    await ensureAdminLaboratoryPagePassword();
+
+    const resetToken = jwt.sign(
+      {
+        purpose: 'admin_laboratory_page_password_reset',
+        adminUserId: String(admin._id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const { sendAdminLaboratoryPageAccessResetEmail } = require('../utils/emailService');
+    const sent = await sendAdminLaboratoryPageAccessResetEmail(admin, resetToken, req);
+    if (sent && sent.success === false) {
+      return res.status(500).json({
+        success: false,
+        message: sent.error || 'Failed to send reset email',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Reset link sent to ${admin.email}`,
+    });
+  } catch (error) {
+    console.error('[ADMIN_FORGOT_LABORATORY_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to send reset email' });
+  }
+};
+
+/** Set a new Lab Settlements page password using the emailed reset token. */
+exports.resetLaboratoryPageAccessPassword = async (req, res) => {
+  try {
+    const token = String(req.body.token || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Reset token is required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(403).json({ success: false, message: 'Reset link is invalid or expired' });
+    }
+    if (decoded.purpose !== 'admin_laboratory_page_password_reset' || !decoded.adminUserId) {
+      return res.status(403).json({ success: false, message: 'Invalid reset token' });
+    }
+
+    const settings = await ensureAdminLaboratoryPagePassword();
+    settings.adminLaboratoryPageAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    res.json({
+      success: true,
+      message: 'Lab settlements page password updated. You can unlock Settlements now.',
+    });
+  } catch (error) {
+    console.error('[ADMIN_RESET_LABORATORY_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to reset access password' });
   }
 };

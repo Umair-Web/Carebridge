@@ -23,6 +23,12 @@ const {
   adminConsultantAccessResetEmailText,
   adminHospitalAccessResetEmailHtml,
   adminHospitalAccessResetEmailText,
+  adminSettlementsPageAccessResetEmailHtml,
+  adminSettlementsPageAccessResetEmailText,
+  adminLaboratoryPageAccessResetEmailHtml,
+  adminLaboratoryPageAccessResetEmailText,
+  labPortalSettlementsPageAccessResetEmailHtml,
+  labPortalSettlementsPageAccessResetEmailText,
   buildNotificationEmail,
   buildNotificationEmailText,
   notificationEmailSubject,
@@ -226,6 +232,39 @@ const sendAdminHospitalAccessResetEmail = async (user, token, req) => {
   });
 };
 
+/** Send settlements page reset link to the logged-in admin's own email. */
+const sendAdminSettlementsPageAccessResetEmail = async (user, token, req) => {
+  const resetUrl = `${getFrontendBase(req)}/reset-settlements-page-access?token=${encodeURIComponent(token)}`;
+  return sendEmail({
+    to: user.email,
+    subject: 'Reset settlements page password — CareBridge Health',
+    html: adminSettlementsPageAccessResetEmailHtml(user, resetUrl),
+    text: adminSettlementsPageAccessResetEmailText(user, resetUrl),
+  });
+};
+
+/** Send lab settlements page reset link to the logged-in admin's own email. */
+const sendAdminLaboratoryPageAccessResetEmail = async (user, token, req) => {
+  const resetUrl = `${getFrontendBase(req)}/reset-laboratory-page-access?token=${encodeURIComponent(token)}`;
+  return sendEmail({
+    to: user.email,
+    subject: 'Reset lab settlements page password — CareBridge Health',
+    html: adminLaboratoryPageAccessResetEmailHtml(user, resetUrl),
+    text: adminLaboratoryPageAccessResetEmailText(user, resetUrl),
+  });
+};
+
+/** Send lab portal Weekly Settlements reset link to the logged-in laboratory user. */
+const sendLabPortalSettlementsPageAccessResetEmail = async (user, token, req) => {
+  const resetUrl = `${getFrontendBase(req)}/reset-lab-settlements-page-access?token=${encodeURIComponent(token)}`;
+  return sendEmail({
+    to: user.email,
+    subject: 'Reset weekly settlements password — CareBridge Health',
+    html: labPortalSettlementsPageAccessResetEmailHtml(user, resetUrl),
+    text: labPortalSettlementsPageAccessResetEmailText(user, resetUrl),
+  });
+};
+
 /** Formatted email for notificationService alert types */
 const sendNotificationEmail = async (type, role, data, message) => {
   if (!data?.email) return { success: false, error: 'Missing email' };
@@ -257,6 +296,9 @@ module.exports = {
   sendAdminReferralAccessResetEmail,
   sendAdminConsultantAccessResetEmail,
   sendAdminHospitalAccessResetEmail,
+  sendAdminSettlementsPageAccessResetEmail,
+  sendAdminLaboratoryPageAccessResetEmail,
+  sendLabPortalSettlementsPageAccessResetEmail,
   sendNotificationEmail,
   sendActionEmail,
   useResend,

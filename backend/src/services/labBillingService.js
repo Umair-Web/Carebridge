@@ -4,6 +4,7 @@ const Consultant = require('../models/Consultant');
 const LabPayout = require('../models/LabPayout');
 const PlatformSettings = require('../models/PlatformSettings');
 const commissionService = require('./commissionService');
+const { applyCloserToLabReferral } = require('../utils/closerActor');
 
 /**
  * Finalizes a lab referral's billing (mirror of billingService.finalizeAdmission):
@@ -13,8 +14,10 @@ const commissionService = require('./commissionService');
  *
  * Consultant balances are NOT auto-credited — they are officially credited once the
  * manual weekly lab settlement receipt/verification cycle completes (same as hospitals).
+ *
+ * @param {object} [closerActor] - optional { closedBy, closedByName }
  */
-exports.finalizeLabReferral = async (referralId, io) => {
+exports.finalizeLabReferral = async (referralId, io, closerActor) => {
   const referral = await LabReferral.findById(referralId);
   if (!referral || referral.status === 'closed') return referral;
 
@@ -48,6 +51,14 @@ exports.finalizeLabReferral = async (referralId, io) => {
   referral.status = 'closed';
   referral.completedAt = new Date();
   referral.closedAt = new Date();
+  if (closerActor) {
+    applyCloserToLabReferral(referral, closerActor);
+  } else if (!referral.closedByName) {
+    applyCloserToLabReferral(referral, {
+      closedBy: null,
+      closedByName: 'System',
+    });
+  }
   await referral.save();
 
   // 4. Accrue payout with full split audit details (legacy + additive snapshot).

@@ -1,14 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
   Receipt, Calendar, Info, Upload, Check, AlertCircle, Clock, 
-  ArrowRight, FileText, Download, Landmark, ArrowUpRight, CheckCircle2 
+  ArrowRight, FileText, Download, Landmark, ArrowUpRight, CheckCircle2, Lock 
 } from 'lucide-react';
 import api from '../utils/api';
 import { formatPkr } from '../utils/formatPkr';
 import toast from 'react-hot-toast';
 import Loader from '../components/Loader';
 
+const HOSPITAL_SETTLEMENTS_UNLOCK_KEY = 'hospital_settlements_page_unlock';
+
 const HospitalSettlements = () => {
+  const [pageUnlocked, setPageUnlocked] = useState(() => !!sessionStorage.getItem(HOSPITAL_SETTLEMENTS_UNLOCK_KEY));
+  const [pagePassword, setPagePassword] = useState('');
+  const [unlockingPage, setUnlockingPage] = useState(false);
+
   const [pendingAdmissions, setPendingAdmissions] = useState([]);
   const [settlements, setSettlements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,8 +54,31 @@ const HospitalSettlements = () => {
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (pageUnlocked) fetchData();
+  }, [fetchData, pageUnlocked]);
+
+  const handlePageUnlock = async (e) => {
+    e.preventDefault();
+    if (!pagePassword.trim()) {
+      return toast.error('Enter settlements access password');
+    }
+    setUnlockingPage(true);
+    try {
+      const res = await api.post('/settlements/hospital/verify-page-access', { password: pagePassword });
+      if (!res.data.success) {
+        return toast.error(res.data.message || 'Incorrect password');
+      }
+      const token = res.data.data?.unlockToken;
+      if (token) sessionStorage.setItem(HOSPITAL_SETTLEMENTS_UNLOCK_KEY, token);
+      setPageUnlocked(true);
+      setPagePassword('');
+      toast.success('Access granted');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Incorrect access password');
+    } finally {
+      setUnlockingPage(false);
+    }
+  };
 
   // When a billing date range is provided, only the cases that fall within it are
   // shown/selectable. With no range, every pending case is available for manual picking.
@@ -231,6 +260,44 @@ const HospitalSettlements = () => {
         return null;
     }
   };
+
+  if (!pageUnlocked) {
+    return (
+      <div className="max-w-md mx-auto mt-16 animate-in fade-in duration-500">
+        <form onSubmit={handlePageUnlock} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 shadow-xl space-y-5">
+          <div className="flex items-start gap-3">
+            <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+              <Lock size={22} />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 dark:text-slate-50">Settlements access</h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Enter the hospital settlements password to view billing and settlement details.
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Access password</label>
+            <input
+              type="password"
+              autoFocus
+              value={pagePassword}
+              onChange={(e) => setPagePassword(e.target.value)}
+              placeholder="Enter access password"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={unlockingPage}
+            className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm disabled:opacity-50"
+          >
+            {unlockingPage ? 'Verifying…' : 'Unlock Settlements'}
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   if (loading && settlements.length === 0 && pendingAdmissions.length === 0) {
     return <Loader message="Loading weekly manual settlements workspace..." />;
@@ -546,6 +613,28 @@ const HospitalSettlements = () => {
                     <span className="font-bold text-slate-800 dark:text-slate-200">{settlement.admissionIds?.length || 0} Admissions</span>
                   </div>
                 </div>
+
+                {(settlement.admissionIds || []).filter(Boolean).length > 0 && (
+                  <div className="rounded-xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+                    {(settlement.admissionIds || []).filter(Boolean).map((adm) => {
+                      const ref = adm.referralId;
+                      return (
+                        <div key={adm._id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-xs">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-x-2">
+                              <span className="font-mono font-bold text-teal-600 dark:text-teal-400">
+                                {ref?.referralCode || '—'}
+                              </span>
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                {ref?.patientName || '—'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Rejection Note */}
                 {settlement.rejectionReason && (

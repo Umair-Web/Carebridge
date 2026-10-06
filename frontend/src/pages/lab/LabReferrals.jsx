@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  FileText, Upload, X, FlaskConical, CheckCircle2, FileCheck2, Receipt, Percent, Search, Download,
+  FileText, Upload, X, FlaskConical, CheckCircle2, FileCheck2, Receipt, Percent, Search, Download, Shield, Eye,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { formatPkr } from '../../utils/formatPkr';
@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import Loader from '../../components/Loader';
 import { downloadPdf } from '../../utils/downloadFile';
 import { ageLabel } from '../../utils/dob';
+import ReferralDetailsPasswordGate from '../../components/ReferralDetailsPasswordGate';
 
 const STATUS_BADGE = {
   pending: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
@@ -26,7 +27,7 @@ const uploadFile = async (file) => {
   return res.data.url;
 };
 
-const ManageModal = ({ referral, onClose, onChanged }) => {
+const ManagePanel = ({ referral, onClose, onChanged }) => {
   // Bill lines are the consultant's referred tests — descriptions are fixed, the lab only sets amounts.
   const referredTests = referral.recommendedTests?.length ? referral.recommendedTests : [];
   const [amounts, setAmounts] = useState({}); // index -> PKR string the lab has edited
@@ -35,6 +36,9 @@ const ManageModal = ({ referral, onClose, onChanged }) => {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingKey, setUploadingKey] = useState(null); // which test row is currently uploading
+  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
+  const [accessNewPassword, setAccessNewPassword] = useState('');
+  const [changingAccessPw, setChangingAccessPw] = useState(false);
 
   // The lab's own catalog — used to auto-fill each referred test's price.
   const { data: catalog = [] } = useQuery({
@@ -155,21 +159,58 @@ const ManageModal = ({ referral, onClose, onChanged }) => {
     }
   };
 
+  const handleChangeAccessPassword = async (e) => {
+    e.preventDefault();
+    if (!accessCurrentPassword || !accessNewPassword) {
+      return toast.error('Enter current and new access passwords');
+    }
+    if (accessNewPassword.length < 6) {
+      return toast.error('New password must be at least 6 characters');
+    }
+    setChangingAccessPw(true);
+    try {
+      const res = await api.post(`/lab-referrals/${referral._id}/change-details-password`, {
+        currentPassword: accessCurrentPassword,
+        newPassword: accessNewPassword,
+      });
+      if (res.data.success) {
+        toast.success(res.data.message || 'Referral access password updated');
+        setAccessCurrentPassword('');
+        setAccessNewPassword('');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to change password');
+    } finally {
+      setChangingAccessPw(false);
+    }
+  };
+
   const isClosed = referral.status === 'closed';
   const inputClass = 'w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-sky-500 outline-none';
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <button type="button" className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={onClose} aria-label="Close" />
+      <aside className="relative h-full w-full max-w-xl bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-100 dark:border-slate-800 flex flex-col animate-in slide-in-from-right duration-300">
+        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div>
             <h2 className="text-lg font-black text-slate-900 dark:text-slate-50">{referral.patientName}</h2>
             <p className="font-mono text-xs text-sky-600 dark:text-sky-400">{referral.referralCode}</p>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><X size={18} /></button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => downloadPdf(`/exports/lab/referrals/${referral._id}`, `Lab_Record_${referral.referralCode}.pdf`)}
+              title="Download record PDF"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-bold rounded-lg transition-colors"
+            >
+              <Download size={13} /> PDF
+            </button>
+            <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><X size={18} /></button>
+          </div>
         </div>
 
-        <div className="p-5 space-y-6">
+        <div className="flex-1 overflow-y-auto p-5 space-y-6">
           {/* Reports — one or more report files per recommended test */}
           <section>
             <h3 className="text-sm font-black text-slate-900 dark:text-slate-50 mb-1 flex items-center gap-1.5"><FileCheck2 size={16} className="text-sky-500" /> Test Reports</h3>
@@ -292,17 +333,48 @@ const ManageModal = ({ referral, onClose, onChanged }) => {
               </div>
             )}
           </section>
+
+          <form onSubmit={handleChangeAccessPassword} className="rounded-2xl border border-amber-100 bg-amber-50/40 dark:bg-amber-950/10 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-slate-900 dark:text-slate-50 font-bold text-sm">
+              <Shield size={16} className="text-amber-600" />
+              Change referral access password
+            </div>
+            <p className="text-xs text-slate-500">
+              Password used to open this referral&apos;s details (default for new referrals: 123456). Not your lab portal login.
+            </p>
+            <input
+              type="password"
+              value={accessCurrentPassword}
+              onChange={(e) => setAccessCurrentPassword(e.target.value)}
+              placeholder="Current access password"
+              className={inputClass}
+            />
+            <input
+              type="password"
+              value={accessNewPassword}
+              onChange={(e) => setAccessNewPassword(e.target.value)}
+              placeholder="New access password"
+              className={inputClass}
+            />
+            <button
+              type="submit"
+              disabled={changingAccessPw}
+              className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50"
+            >
+              {changingAccessPw ? 'Updating…' : 'Update access password'}
+            </button>
+          </form>
         </div>
 
         {!isClosed && (
-          <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-100 dark:border-slate-800 sticky bottom-0 bg-white dark:bg-slate-900">
+          <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
             <button onClick={saveBill} disabled={busy} className="px-4 py-2 border border-slate-200 dark:border-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-60">Save draft</button>
             <button onClick={finalize} disabled={busy} className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-lg disabled:opacity-60">
               <CheckCircle2 size={16} /> Finalize bill
             </button>
           </div>
         )}
-      </div>
+      </aside>
     </div>
   );
 };
@@ -310,6 +382,7 @@ const ManageModal = ({ referral, onClose, onChanged }) => {
 const LabReferrals = () => {
   const queryClient = useQueryClient();
   const [active, setActive] = useState(null);
+  const [pendingUnlock, setPendingUnlock] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const { data: referrals = [], isLoading } = useQuery({
@@ -322,7 +395,7 @@ const LabReferrals = () => {
     ? referrals.filter((r) => r.referralCode?.toLowerCase().includes(search))
     : referrals;
 
-  // Keep the open modal's data fresh after mutations
+  // Keep the open panel's data fresh after mutations
   useEffect(() => {
     if (active) {
       const updated = referrals.find((r) => r._id === active._id);
@@ -334,6 +407,10 @@ const LabReferrals = () => {
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['lab-referrals'] });
     queryClient.invalidateQueries({ queryKey: ['lab-dashboard'] });
+  };
+
+  const requestOpen = (referral) => {
+    setPendingUnlock(referral);
   };
 
   if (isLoading) return <Loader message="Loading referrals..." />;
@@ -367,6 +444,11 @@ const LabReferrals = () => {
         </button>
       </div>
 
+      <p className="text-xs text-slate-500">
+        Opening Manage/View requires the <span className="font-semibold">referral access password</span>
+        {' '}(default <span className="font-mono">123456</span>) — not your laboratory portal login.
+      </p>
+
       {filteredReferrals.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-10 text-center text-slate-400">
           <FlaskConical className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-700 mb-3" />
@@ -397,22 +479,17 @@ const LabReferrals = () => {
                   </td>
                   <td className="px-4 py-3 tabular-nums">{r.billTotalPaisa ? formatPkr(r.billTotalPaisa) : '—'}</td>
                   <td className="px-4 py-3 text-right">
-                    <div className="inline-flex items-center gap-1.5">
-                      {['accepted', 'reported', 'closed'].includes(r.status) ? (
-                        <button onClick={() => setActive(r)} className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg transition-colors">
-                          {r.status === 'closed' ? 'View' : 'Manage'}
-                        </button>
-                      ) : (
-                        <span className="text-xs text-slate-400">{r.status === 'pending' ? 'In inbox' : '—'}</span>
-                      )}
+                    {['accepted', 'reported', 'closed'].includes(r.status) ? (
                       <button
-                        onClick={() => downloadPdf(`/exports/lab/referrals/${r._id}`, `Lab_Record_${r.referralCode}.pdf`)}
-                        title="Download record PDF"
-                        className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-sky-600 transition-colors"
+                        onClick={() => requestOpen(r)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg transition-colors"
                       >
-                        <Download size={15} />
+                        <Eye size={13} />
+                        {r.status === 'closed' ? 'View' : 'Manage'}
                       </button>
-                    </div>
+                    ) : (
+                      <span className="text-xs text-slate-400">{r.status === 'pending' ? 'In inbox' : '—'}</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -421,7 +498,19 @@ const LabReferrals = () => {
         </div>
       )}
 
-      {active && <ManageModal referral={active} onClose={() => setActive(null)} onChanged={refresh} />}
+      {pendingUnlock && (
+        <ReferralDetailsPasswordGate
+          referral={pendingUnlock}
+          verifyPath={`/lab-referrals/${pendingUnlock._id}/verify-details-password`}
+          onClose={() => setPendingUnlock(null)}
+          onUnlocked={() => {
+            setActive(pendingUnlock);
+            setPendingUnlock(null);
+          }}
+        />
+      )}
+
+      {active && <ManagePanel referral={active} onClose={() => setActive(null)} onChanged={refresh} />}
     </div>
   );
 };

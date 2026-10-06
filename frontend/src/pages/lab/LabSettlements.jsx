@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Receipt, Calendar, Upload, FileText, ArrowRight, Clock, Info, Landmark, CheckCircle2, AlertCircle,
+  Receipt, Calendar, Upload, FileText, ArrowRight, Clock, Info, Landmark, CheckCircle2, AlertCircle, Lock,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { formatPkr } from '../../utils/formatPkr';
@@ -34,6 +34,12 @@ const uploadFile = async (file) => {
 
 const LabSettlements = () => {
   const queryClient = useQueryClient();
+  // Unlock is in-memory only — leaving the page and returning requires the password again.
+  const [pageUnlocked, setPageUnlocked] = useState(false);
+  const [pagePassword, setPagePassword] = useState('');
+  const [unlockingPage, setUnlockingPage] = useState(false);
+  const [sendingForgot, setSendingForgot] = useState(false);
+
   const [selected, setSelected] = useState([]);
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
@@ -45,16 +51,51 @@ const LabSettlements = () => {
   const { data: pending = [], isLoading: l1 } = useQuery({
     queryKey: ['lab-pending-referrals'],
     queryFn: async () => (await api.get('/lab-settlements/pending-referrals')).data.data,
+    enabled: pageUnlocked,
   });
   const { data: settlements = [], isLoading: l2 } = useQuery({
     queryKey: ['lab-settlements-mine'],
     queryFn: async () => (await api.get('/lab-settlements/mine')).data.data,
+    enabled: pageUnlocked,
   });
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['lab-pending-referrals'] });
     queryClient.invalidateQueries({ queryKey: ['lab-settlements-mine'] });
     queryClient.invalidateQueries({ queryKey: ['lab-dashboard'] });
+  };
+
+  const handlePageUnlock = async (e) => {
+    e.preventDefault();
+    if (!pagePassword.trim()) {
+      return toast.error('Enter settlements access password');
+    }
+    setUnlockingPage(true);
+    try {
+      const res = await api.post('/lab-settlements/verify-page-access', { password: pagePassword });
+      if (!res.data.success) {
+        return toast.error(res.data.message || 'Incorrect password');
+      }
+      setPageUnlocked(true);
+      setPagePassword('');
+      toast.success('Access granted');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Incorrect access password');
+    } finally {
+      setUnlockingPage(false);
+    }
+  };
+
+  const handleForgotPagePassword = async () => {
+    setSendingForgot(true);
+    try {
+      const res = await api.post('/lab-settlements/forgot-page-access');
+      toast.success(res.data.message || 'Reset link sent to your email');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send reset email');
+    } finally {
+      setSendingForgot(false);
+    }
   };
 
   const toggle = (id) => setSelected((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
@@ -125,6 +166,57 @@ const LabSettlements = () => {
     }
   };
 
+  if (!pageUnlocked) {
+    return (
+      <div className="max-w-md mx-auto mt-16 animate-in fade-in duration-500">
+        <form onSubmit={handlePageUnlock} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-8 shadow-xl space-y-5">
+          <div className="flex items-start gap-3">
+            <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+              <Lock size={22} />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-slate-900 dark:text-slate-50">Settlements access</h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Enter the weekly settlements password to view billing and settlement details.
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Access password</label>
+            <input
+              type="password"
+              autoFocus
+              value={pagePassword}
+              onChange={(e) => setPagePassword(e.target.value)}
+              placeholder="Enter access password"
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={unlockingPage}
+            className="w-full py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm disabled:opacity-50"
+          >
+            {unlockingPage ? 'Verifying…' : 'Unlock Settlements'}
+          </button>
+          <div className="text-center pt-1">
+            <button
+              type="button"
+              onClick={handleForgotPagePassword}
+              disabled={sendingForgot}
+              className="text-sm font-semibold text-sky-600 hover:text-sky-700 disabled:opacity-50"
+            >
+              {sendingForgot ? 'Sending email…' : 'Forgot password?'}
+            </button>
+            <p className="text-[11px] text-slate-400 mt-1">
+              We’ll email a reset link to your logged-in lab account.
+            </p>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
   if (l1 && l2) return <Loader message="Loading settlements..." />;
 
   const inputClass = 'w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-sky-500 outline-none';
@@ -141,7 +233,6 @@ const LabSettlements = () => {
         </div>
       </div>
 
-      {/* Create */}
       <form onSubmit={create} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
         <h2 className="text-lg font-black text-slate-900 dark:text-slate-50 flex items-center gap-2"><Calendar size={18} className="text-sky-500" /> Compile New Billing Period</h2>
 
@@ -157,45 +248,31 @@ const LabSettlements = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Closed cases ({selected.length} chosen)</label>
-          <p className="text-[11px] text-slate-400 mb-2">Selecting a case automatically attaches its patient bill — no separate summary needed.</p>
-          <div className="border border-slate-100 dark:border-slate-800 rounded-xl max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+            Select closed cases ({selected.length} selected)
+          </label>
+          <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
             {pending.length === 0 ? (
-              <div className="px-5 py-8 text-center text-xs text-slate-400">No closed-but-unsettled cases.</div>
+              <p className="p-4 text-sm text-slate-400">No unsettled closed cases.</p>
             ) : (
               pending.map((r) => (
                 <label key={r._id} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <input type="checkbox" checked={selected.includes(r._id)} onChange={() => toggle(r._id)} className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500" />
-                  <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400">{r.referralCode}</span>
-                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{r.patientName || '—'}</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-slate-500">
-                        {r.consultantId?.promoCode ? (
-                          <span>Promo <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{r.consultantId.promoCode}</span></span>
-                        ) : (
-                          <span className="text-slate-400">No promo code</span>
-                        )}
-                        {r.consultantId?.userId?.name && (
-                          <span>· Dr. {r.consultantId.userId.name}</span>
-                        )}
-                      </div>
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(r._id)}
+                    onChange={() => toggle(r._id)}
+                    className="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs font-bold text-sky-600 dark:text-sky-400 truncate">{r.referralCode}</span>
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-100">{formatPkr(r.billTotalPaisa)}</span>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      {r.patientBillFileUrl && (
-                        <a
-                          href={r.patientBillFileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline"
-                        >
-                          <FileText size={12} /> Bill
-                        </a>
-                      )}
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-200 tabular-nums">{formatPkr(r.billTotalPaisa)}</span>
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <span className="text-xs text-slate-500 truncate">Patient: {r.patientName}</span>
+                      <span className="text-[10px] text-slate-400">
+                        {r.completedAt ? new Date(r.completedAt).toLocaleDateString() : ''}
+                      </span>
                     </div>
                   </div>
                 </label>
@@ -232,7 +309,6 @@ const LabSettlements = () => {
         </button>
       </form>
 
-      {/* History */}
       <div className="space-y-4">
         <h2 className="text-xl font-black text-slate-900 dark:text-slate-50">Settlement Log</h2>
         {settlements.length === 0 ? (
@@ -277,13 +353,8 @@ const LabSettlements = () => {
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="font-bold tabular-nums text-slate-700 dark:text-slate-300">{formatPkr(r.billTotalPaisa)}</span>
                         {r.patientBillFileUrl && (
-                          <a
-                            href={r.patientBillFileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 font-bold text-sky-600 dark:text-sky-400 hover:underline"
-                          >
-                            <FileText size={13} /> Bill
+                          <a href={r.patientBillFileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-sky-600 dark:text-sky-400 hover:underline">
+                            <FileText size={12} /> Bill
                           </a>
                         )}
                       </div>
@@ -293,9 +364,12 @@ const LabSettlements = () => {
               )}
 
               {s.rejectionReason && (
-                <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-3 rounded-xl flex gap-2 text-xs text-red-700 dark:text-red-400">
-                  <AlertCircle size={16} className="shrink-0 text-red-500" />
-                  <div><span className="font-black">Receipt rejected:</span> {s.rejectionReason}</div>
+                <div className="bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/50 p-4 rounded-xl flex gap-3 text-xs text-red-700 dark:text-red-400">
+                  <AlertCircle size={18} className="shrink-0 text-red-500" />
+                  <div>
+                    <p className="font-black">Receipt rejected:</p>
+                    <p className="mt-0.5">{s.rejectionReason}</p>
+                  </div>
                 </div>
               )}
 

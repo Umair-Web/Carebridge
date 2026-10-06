@@ -12,6 +12,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const DEFAULT_ADMIN_SETTLEMENTS_PAGE_PASSWORD = 'Adminsettly123?';
+const DEFAULT_HOSPITAL_SETTLEMENTS_PAGE_PASSWORD = 'hospitalsettly123?';
 
 async function ensureAdminSettlementsPagePassword() {
   let settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
@@ -21,6 +22,21 @@ async function ensureAdminSettlementsPagePassword() {
   if (!settings.adminSettlementsPageAccessPasswordHash) {
     settings.adminSettlementsPageAccessPasswordHash = await bcrypt.hash(
       DEFAULT_ADMIN_SETTLEMENTS_PAGE_PASSWORD,
+      10
+    );
+    await settings.save();
+  }
+  return settings;
+}
+
+async function ensureHospitalSettlementsPagePassword() {
+  let settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
+  if (!settings) {
+    settings = await PlatformSettings.create({});
+  }
+  if (!settings.hospitalSettlementsPageAccessPasswordHash) {
+    settings.hospitalSettlementsPageAccessPasswordHash = await bcrypt.hash(
+      DEFAULT_HOSPITAL_SETTLEMENTS_PAGE_PASSWORD,
       10
     );
     await settings.save();
@@ -249,7 +265,14 @@ exports.listHospitalSettlements = async (req, res) => {
     }
 
     const settlements = await WeeklySettlement.find({ hospitalId: hospital._id })
-      .populate('admissionIds', 'referralId billTotalPaisa status completedAt patientBillFileUrl')
+      .populate({
+        path: 'admissionIds',
+        select: 'referralId billTotalPaisa status completedAt patientBillFileUrl',
+        populate: {
+          path: 'referralId',
+          select: 'patientName referralCode',
+        },
+      })
       .populate({
         path: 'consultantPayouts.consultantId',
         populate: { path: 'userId', select: 'name payoutAccount' }
@@ -287,7 +310,7 @@ exports.adminListSettlements = async (req, res) => {
         select: 'billTotalPaisa completedAt patientBillFileUrl referralId',
         populate: {
           path: 'referralId',
-          select: 'patientName referralCode promoCode consultantId',
+          select: 'patientName referralCode promoCode consultantId closedByName closedByKind',
           populate: {
             path: 'consultantId',
             select: 'promoCode',
@@ -564,6 +587,117 @@ exports.verifySettlementsPageAccess = async (req, res) => {
     });
   } catch (error) {
     console.error('[ADMIN_VERIFY_SETTLEMENTS_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to verify access password' });
+  }
+};
+
+/** Email the logged-in admin a link to reset Settlements Queue page password. */
+exports.forgotSettlementsPageAccess = async (req, res) => {
+  try {
+    const admin = await User.findById(req.user.id).select('name email role');
+    if (!admin || admin.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Admin only' });
+    }
+    if (!admin.email) {
+      return res.status(400).json({ success: false, message: 'Your account has no email on file' });
+    }
+
+    await ensureAdminSettlementsPagePassword();
+
+    const resetToken = jwt.sign(
+      {
+        purpose: 'admin_settlements_page_password_reset',
+        adminUserId: String(admin._id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const { sendAdminSettlementsPageAccessResetEmail } = require('../utils/emailService');
+    const sent = await sendAdminSettlementsPageAccessResetEmail(admin, resetToken, req);
+    if (sent && sent.success === false) {
+      return res.status(500).json({
+        success: false,
+        message: sent.error || 'Failed to send reset email',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Reset link sent to ${admin.email}`,
+    });
+  } catch (error) {
+    console.error('[ADMIN_FORGOT_SETTLEMENTS_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to send reset email' });
+  }
+};
+
+/** Set a new Settlements Queue page password using the emailed reset token. */
+exports.resetSettlementsPageAccessPassword = async (req, res) => {
+  try {
+    const token = String(req.body.token || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Reset token is required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(403).json({ success: false, message: 'Reset link is invalid or expired' });
+    }
+    if (decoded.purpose !== 'admin_settlements_page_password_reset' || !decoded.adminUserId) {
+      return res.status(403).json({ success: false, message: 'Invalid reset token' });
+    }
+
+    const settings = await ensureAdminSettlementsPagePassword();
+    settings.adminSettlementsPageAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    res.json({
+      success: true,
+      message: 'Settlements page password updated. You can unlock the Settlements Queue now.',
+    });
+  } catch (error) {
+    console.error('[ADMIN_RESET_SETTLEMENTS_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to reset access password' });
+  }
+};
+
+/** Verify hospital Weekly Settlements page-access password. */
+exports.verifyHospitalSettlementsPageAccess = async (req, res) => {
+  try {
+    const password = String(req.body.password || '');
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    const settings = await ensureHospitalSettlementsPagePassword();
+    const ok = await bcrypt.compare(password, settings.hospitalSettlementsPageAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Incorrect access password' });
+    }
+
+    const unlockToken = jwt.sign(
+      {
+        purpose: 'hospital_settlements_page_unlock',
+        hospitalUserId: String(req.user.id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '4h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Access granted',
+      data: { unlockToken, expiresInMinutes: 240 },
+    });
+  } catch (error) {
+    console.error('[HOSPITAL_VERIFY_SETTLEMENTS_PAGE]', error);
     res.status(500).json({ success: false, message: 'Failed to verify access password' });
   }
 };

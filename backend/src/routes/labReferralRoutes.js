@@ -13,6 +13,8 @@ const {
   uploadLabReports,
   updateLabBill,
   finalizeLabBill,
+  verifyLabReferralDetailsPassword,
+  changeLabReferralDetailsPassword,
 } = require('../controllers/labReferralController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -32,6 +34,8 @@ router.patch('/:id/reject', authorize(['laboratory']), rejectLabReferral);
 router.post('/:id/reports', authorize(['laboratory']), uploadLabReports);
 router.patch('/:id/bill', authorize(['laboratory']), updateLabBill);
 router.patch('/:id/finalize', authorize(['laboratory']), finalizeLabBill);
+router.post('/:id/verify-details-password', authorize(['laboratory']), verifyLabReferralDetailsPassword);
+router.post('/:id/change-details-password', authorize(['laboratory']), changeLabReferralDetailsPassword);
 
 // ── Shared (consultant owner | target lab | admin) ──────────────────────────
 router.get('/:id', authorize(['consultant', 'laboratory', 'admin']), getLabReferralDetails);

@@ -44,6 +44,21 @@ router.post(
   authLimiter,
   require('../controllers/adminController').resetHospitalProfileAccessPassword
 );
+router.post(
+  '/reset-settlements-page-access-password',
+  authLimiter,
+  require('../controllers/settlementController').resetSettlementsPageAccessPassword
+);
+router.post(
+  '/reset-laboratory-page-access-password',
+  authLimiter,
+  require('../controllers/labAdminController').resetLaboratoryPageAccessPassword
+);
+router.post(
+  '/reset-lab-settlements-page-access-password',
+  authLimiter,
+  require('../controllers/labSettlementController').resetLabPortalSettlementsPageAccessPassword
+);
 router.get('/platform-settings', authController.getPlatformBrandingSettings);
 
 module.exports = router;

@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Hospital = require('../models/Hospital');
+const Laboratory = require('../models/Laboratory');
 
 /**
  * Resolve who closed a patient/referral for audit display.
@@ -11,7 +12,7 @@ async function resolveCloserActor(reqUser) {
     return { closedBy: null, closedByName: 'System', closedByKind: 'system' };
   }
 
-  const user = await User.findById(reqUser.id).select('name role hospitalId').lean();
+  const user = await User.findById(reqUser.id).select('name role hospitalId labId').lean();
   if (!user) {
     return {
       closedBy: reqUser.id,
@@ -51,6 +52,29 @@ async function resolveCloserActor(reqUser) {
     };
   }
 
+  if (user.role === 'laboratory') {
+    const ownsLab = await Laboratory.exists({ userId: user._id });
+    if (ownsLab) {
+      return {
+        closedBy: user._id,
+        closedByName: user.name || 'Lab Admin',
+        closedByKind: 'lab_owner',
+      };
+    }
+    if (user.labId) {
+      return {
+        closedBy: user._id,
+        closedByName: user.name || 'Lab Team',
+        closedByKind: 'lab_team',
+      };
+    }
+    return {
+      closedBy: user._id,
+      closedByName: user.name || 'Lab User',
+      closedByKind: 'lab_owner',
+    };
+  }
+
   return {
     closedBy: user._id,
     closedByName: user.name || 'User',
@@ -65,9 +89,18 @@ function applyCloserToReferral(referral, actor) {
   referral.closedByKind = actor.closedByKind;
 }
 
+/** Lab referrals only store closedBy + closedByName (no closedByKind). */
+function applyCloserToLabReferral(referral, actor) {
+  if (!referral || !actor) return;
+  referral.closedBy = actor.closedBy || undefined;
+  referral.closedByName = actor.closedByName;
+}
+
 const CLOSER_KIND_LABELS = {
   hospital_owner: 'Hospital Admin',
   hospital_team: 'Hospital Team',
+  lab_owner: 'Lab Admin',
+  lab_team: 'Lab Team',
   admin: 'Admin',
   system: 'System',
   jazzcash: 'JazzCash Payment',
@@ -80,6 +113,7 @@ function closerKindLabel(kind) {
 module.exports = {
   resolveCloserActor,
   applyCloserToReferral,
+  applyCloserToLabReferral,
   closerKindLabel,
   CLOSER_KIND_LABELS,
 };

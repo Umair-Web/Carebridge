@@ -46,6 +46,16 @@ const PlatformSettingsSchema = new mongoose.Schema(
      * Default plaintext on first use: Labsettly123?
      */
     adminLaboratoryPageAccessPasswordHash: { type: String },
+    /**
+     * Hospital-only password to unlock the Weekly Settlements page.
+     * Default plaintext on first use: hospitalsettly123?
+     */
+    hospitalSettlementsPageAccessPasswordHash: { type: String },
+    /**
+     * Laboratory portal password to unlock Weekly Settlements (/lab/settlements).
+     * Default plaintext on first use: labsettly123?
+     */
+    labPortalSettlementsPageAccessPasswordHash: { type: String },
   },
   { timestamps: true }
 );

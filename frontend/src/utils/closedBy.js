@@ -2,6 +2,8 @@
 export const CLOSER_KIND_LABELS = {
   hospital_owner: 'Hospital Admin',
   hospital_team: 'Hospital Team',
+  lab_owner: 'Lab Admin',
+  lab_team: 'Lab Team',
   admin: 'Admin',
   system: 'System',
   jazzcash: 'JazzCash Payment',

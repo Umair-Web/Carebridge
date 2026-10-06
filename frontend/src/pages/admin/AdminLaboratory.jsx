@@ -783,15 +783,15 @@ const SETTLEMENT_STATUS = {
   },
 };
 
-const LAB_SETTLEMENTS_UNLOCK_KEY = 'admin_lab_settlements_unlock';
-
 // ── Settlements queue ───────────────────────────────────────────────────────────
 const SettlementsPanel = () => {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState({});
-  const [unlocked, setUnlocked] = useState(() => !!sessionStorage.getItem(LAB_SETTLEMENTS_UNLOCK_KEY));
+  // Unlock is in-memory only — leaving Settlements (or the page) requires the password again.
+  const [unlocked, setUnlocked] = useState(false);
   const [password, setPassword] = useState('');
   const [unlocking, setUnlocking] = useState(false);
+  const [sendingForgot, setSendingForgot] = useState(false);
 
   const { data: settlements = [], isLoading } = useQuery({
     queryKey: ['admin-lab-settlements'],
@@ -811,8 +811,6 @@ const SettlementsPanel = () => {
       if (!res.data.success) {
         return toast.error(res.data.message || 'Incorrect password');
       }
-      const token = res.data.data?.unlockToken;
-      if (token) sessionStorage.setItem(LAB_SETTLEMENTS_UNLOCK_KEY, token);
       setUnlocked(true);
       setPassword('');
       toast.success('Access granted');
@@ -820,6 +818,18 @@ const SettlementsPanel = () => {
       toast.error(err.response?.data?.message || 'Incorrect access password');
     } finally {
       setUnlocking(false);
+    }
+  };
+
+  const handleForgotPagePassword = async () => {
+    setSendingForgot(true);
+    try {
+      const res = await api.post('/admin/labs/forgot-page-access');
+      toast.success(res.data.message || 'Reset link sent to your email');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send reset email');
+    } finally {
+      setSendingForgot(false);
     }
   };
 
@@ -890,6 +900,19 @@ const SettlementsPanel = () => {
           >
             {unlocking ? 'Verifying…' : 'Unlock Settlements'}
           </button>
+          <div className="text-center pt-1">
+            <button
+              type="button"
+              onClick={handleForgotPagePassword}
+              disabled={sendingForgot}
+              className="text-sm font-semibold text-sky-600 hover:text-sky-700 disabled:opacity-50"
+            >
+              {sendingForgot ? 'Sending email…' : 'Forgot password?'}
+            </button>
+            <p className="text-[11px] text-slate-400 mt-1">
+              We’ll email a reset link to your logged-in admin account.
+            </p>
+          </div>
         </form>
       </div>
     );

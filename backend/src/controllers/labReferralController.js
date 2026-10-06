@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 const { getLabForUser } = require('../utils/resolveOrg');
 const LabReferral = require('../models/LabReferral');
 const Laboratory = require('../models/Laboratory');
@@ -13,6 +15,15 @@ const {
   redactLabReferralIfSuspended,
 } = require('../utils/labReferralDetailsAccess');
 
+const DEFAULT_DETAILS_PASSWORD = '123456';
+
+async function ensureLabReferralDetailsPassword(referralDoc) {
+  if (referralDoc.detailsPasswordHash) return referralDoc.detailsPasswordHash;
+  const hash = await bcrypt.hash(DEFAULT_DETAILS_PASSWORD, 12);
+  await LabReferral.updateOne({ _id: referralDoc._id }, { $set: { detailsPasswordHash: hash } });
+  referralDoc.detailsPasswordHash = hash;
+  return hash;
+}
 /** Only labs tied to an active laboratory user (registration + admin approval). */
 async function filterLabsEligible(labs) {
   if (!labs.length) return [];
@@ -173,6 +184,7 @@ exports.createLabReferral = async (req, res) => {
       discountPercentage,
       status: 'pending',
       detailsViewAccess: 'active',
+      detailsPasswordHash: await bcrypt.hash(DEFAULT_DETAILS_PASSWORD, 12),
     });
 
     const io = req.app.get('io');
@@ -541,10 +553,101 @@ exports.finalizeLabBill = async (req, res) => {
     }
 
     const io = req.app.get('io');
-    const finalized = await labBillingService.finalizeLabReferral(referral._id, io);
+    const { resolveCloserActor } = require('../utils/closerActor');
+    const closerActor = await resolveCloserActor(req.user);
+    const finalized = await labBillingService.finalizeLabReferral(referral._id, io, closerActor);
     res.json({ success: true, message: 'Lab case finalized; consultant payout accrued', data: finalized });
   } catch (error) {
     console.error('[FINALIZE_LAB_BILL_ERROR]', error);
     res.status(500).json({ success: false, message: 'Failed to finalize lab bill' });
+  }
+};
+
+/** Lab portal: verify patient-details password and issue a short-lived unlock token. */
+exports.verifyLabReferralDetailsPassword = async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    const lab = await getLabForUser(req.user);
+    if (!lab) {
+      return res.status(404).json({ success: false, message: 'Laboratory profile not found' });
+    }
+
+    const referral = await LabReferral.findOne({
+      _id: req.params.id,
+      targetLaboratoryId: lab._id,
+    }).select('+detailsPasswordHash');
+    if (!referral) {
+      return res.status(404).json({ success: false, message: 'Lab referral not found' });
+    }
+
+    const hash = await ensureLabReferralDetailsPassword(referral);
+    const isMatch = await bcrypt.compare(password, hash);
+    if (!isMatch) {
+      return res.status(403).json({ success: false, message: 'Incorrect patient details password' });
+    }
+
+    const unlockToken = jwt.sign(
+      {
+        purpose: 'lab_referral_details_unlock',
+        referralId: referral._id.toString(),
+        userId: req.user.id,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Password verified',
+      unlockToken,
+    });
+  } catch (error) {
+    console.error('[VERIFY_LAB_REFERRAL_DETAILS_PASSWORD]', error);
+    res.status(500).json({ success: false, message: 'Failed to verify password' });
+  }
+};
+
+/** Lab portal: change the patient-details password for a lab referral. */
+exports.changeLabReferralDetailsPassword = async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || req.body.password || '');
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+    }
+
+    const lab = await getLabForUser(req.user);
+    if (!lab) {
+      return res.status(404).json({ success: false, message: 'Laboratory profile not found' });
+    }
+
+    const referral = await LabReferral.findOne({
+      _id: req.params.id,
+      targetLaboratoryId: lab._id,
+    }).select('+detailsPasswordHash');
+    if (!referral) {
+      return res.status(404).json({ success: false, message: 'Lab referral not found' });
+    }
+
+    const hash = await ensureLabReferralDetailsPassword(referral);
+    const ok = await bcrypt.compare(currentPassword, hash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Current access password is incorrect' });
+    }
+
+    referral.detailsPasswordHash = await bcrypt.hash(newPassword, 12);
+    await referral.save();
+
+    res.json({ success: true, message: 'Referral access password updated' });
+  } catch (error) {
+    console.error('[CHANGE_LAB_REFERRAL_DETAILS_PASSWORD]', error);
+    res.status(500).json({ success: false, message: 'Failed to change access password' });
   }
 };

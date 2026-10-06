@@ -15,6 +15,7 @@ router.get('/payouts', ctrl.listLabPayouts);
 router.post('/forgot-access-password', ctrl.forgotLabProfileAccessPassword);
 router.patch('/access-password', ctrl.changeLabProfileAccessPassword);
 router.post('/verify-page-access', ctrl.verifyLaboratoryPageAccess);
+router.post('/forgot-page-access', ctrl.forgotLaboratoryPageAccess);
 router.post('/verify-access', ctrl.verifyLabAccessPassword);
 router.post('/:id/verify-access', ctrl.verifyLabProfileAccess);
 router.get('/:id', ctrl.getLab);

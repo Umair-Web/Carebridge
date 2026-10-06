@@ -102,11 +102,20 @@ const LabReferralSchema = new mongoose.Schema(
       default: 'active',
     },
 
+    /**
+     * Password gate for opening full patient/billing details (lab portal Manage/View).
+     * Default plaintext on create: 123456.
+     */
+    detailsPasswordHash: { type: String, select: false },
+
     // Timeline
     acceptedAt: { type: Date },
     reportedAt: { type: Date },
     completedAt: { type: Date },
     closedAt: { type: Date },
+    /** Who closed / finalized this lab case. */
+    closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    closedByName: { type: String, trim: true },
   },
   {
     timestamps: true,

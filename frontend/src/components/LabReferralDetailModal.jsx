@@ -340,6 +340,7 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
               <Field label="Expected Report">{referral.expectedReportAt ? new Date(referral.expectedReportAt).toLocaleString() : '—'}</Field>
               <Field label="Created">{new Date(referral.createdAt).toLocaleString()}</Field>
               <Field label="Closed">{referral.closedAt ? new Date(referral.closedAt).toLocaleString() : '—'}</Field>
+              <Field label="Closed by">{referral.closedByName || '—'}</Field>
             </section>
 
             <section>

@@ -5,9 +5,28 @@ const LabPayout = require('../models/LabPayout');
 const Laboratory = require('../models/Laboratory');
 const Consultant = require('../models/Consultant');
 const User = require('../models/User');
+const PlatformSettings = require('../models/PlatformSettings');
 const { logAction } = require('../utils/logger');
 const notificationService = require('../services/notificationService');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
+const DEFAULT_LAB_PORTAL_SETTLEMENTS_PAGE_PASSWORD = 'labsettly123?';
+
+async function ensureLabPortalSettlementsPagePassword() {
+  let settings = await PlatformSettings.findOne().sort({ updatedAt: -1 });
+  if (!settings) {
+    settings = await PlatformSettings.create({});
+  }
+  if (!settings.labPortalSettlementsPageAccessPasswordHash) {
+    settings.labPortalSettlementsPageAccessPasswordHash = await bcrypt.hash(
+      DEFAULT_LAB_PORTAL_SETTLEMENTS_PAGE_PASSWORD,
+      10
+    );
+    await settings.save();
+  }
+  return settings;
+}
 // 1. Lab lists referrals eligible for weekly settlement (closed and not settled)
 exports.listPendingReferrals = async (req, res) => {
   try {
@@ -522,5 +541,116 @@ exports.consultantLabEarnings = async (req, res) => {
   } catch (error) {
     console.error('[CONSULTANT_LAB_EARNINGS_ERROR]', error);
     res.status(500).json({ success: false, message: 'Failed to fetch lab earnings' });
+  }
+};
+
+/** Verify laboratory portal Weekly Settlements page-access password. */
+exports.verifyLabPortalSettlementsPageAccess = async (req, res) => {
+  try {
+    const password = String(req.body.password || '');
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+
+    const settings = await ensureLabPortalSettlementsPagePassword();
+    const ok = await bcrypt.compare(password, settings.labPortalSettlementsPageAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Incorrect access password' });
+    }
+
+    const unlockToken = jwt.sign(
+      {
+        purpose: 'lab_portal_settlements_page_unlock',
+        labUserId: String(req.user.id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '4h' }
+    );
+
+    res.json({
+      success: true,
+      message: 'Access granted',
+      data: { unlockToken, expiresInMinutes: 240 },
+    });
+  } catch (error) {
+    console.error('[LAB_VERIFY_SETTLEMENTS_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to verify access password' });
+  }
+};
+
+/** Email the logged-in lab user a link to reset Weekly Settlements page password. */
+exports.forgotLabPortalSettlementsPageAccess = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('name email role');
+    if (!user || user.role !== 'laboratory') {
+      return res.status(403).json({ success: false, message: 'Laboratory only' });
+    }
+    if (!user.email) {
+      return res.status(400).json({ success: false, message: 'Your account has no email on file' });
+    }
+
+    await ensureLabPortalSettlementsPagePassword();
+
+    const resetToken = jwt.sign(
+      {
+        purpose: 'lab_portal_settlements_page_password_reset',
+        labUserId: String(user._id),
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    const { sendLabPortalSettlementsPageAccessResetEmail } = require('../utils/emailService');
+    const sent = await sendLabPortalSettlementsPageAccessResetEmail(user, resetToken, req);
+    if (sent && sent.success === false) {
+      return res.status(500).json({
+        success: false,
+        message: sent.error || 'Failed to send reset email',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Reset link sent to ${user.email}`,
+    });
+  } catch (error) {
+    console.error('[LAB_FORGOT_SETTLEMENTS_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to send reset email' });
+  }
+};
+
+/** Set a new lab portal Settlements page password using the emailed reset token. */
+exports.resetLabPortalSettlementsPageAccessPassword = async (req, res) => {
+  try {
+    const token = String(req.body.token || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Reset token is required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(403).json({ success: false, message: 'Reset link is invalid or expired' });
+    }
+    if (decoded.purpose !== 'lab_portal_settlements_page_password_reset' || !decoded.labUserId) {
+      return res.status(403).json({ success: false, message: 'Invalid reset token' });
+    }
+
+    const settings = await ensureLabPortalSettlementsPagePassword();
+    settings.labPortalSettlementsPageAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    res.json({
+      success: true,
+      message: 'Lab settlements page password updated. You can unlock Weekly Settlement now.',
+    });
+  } catch (error) {
+    console.error('[LAB_RESET_SETTLEMENTS_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to reset access password' });
   }
 };

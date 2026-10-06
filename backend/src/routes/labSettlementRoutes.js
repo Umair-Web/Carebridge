@@ -7,9 +7,11 @@ router.use(protect);
 
 // ── Laboratory ──────────────────────────────────────────────────────────────
 router.get('/pending-referrals', authorize(['laboratory']), ctrl.listPendingReferrals);
+router.post('/verify-page-access', authorize(['laboratory']), ctrl.verifyLabPortalSettlementsPageAccess);
+router.post('/forgot-page-access', authorize(['laboratory']), ctrl.forgotLabPortalSettlementsPageAccess);
 router.post('/', authorize(['laboratory']), ctrl.createSettlement);
-router.post('/:id/receipt', authorize(['laboratory']), ctrl.uploadLabReceipt);
 router.get('/mine', authorize(['laboratory']), ctrl.listLabSettlements);
+router.post('/:id/receipt', authorize(['laboratory']), ctrl.uploadLabReceipt);
 
 // ── Admin ────────────────────────────────────────────────────────────────────
 router.get('/admin', authorize(['admin']), ctrl.adminListSettlements);

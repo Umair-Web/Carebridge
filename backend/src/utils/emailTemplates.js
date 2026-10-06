@@ -756,6 +756,90 @@ const adminHospitalAccessResetEmailText = (user, resetUrl) =>
     cta: { href: resetUrl },
   });
 
+const adminSettlementsPageAccessResetEmailHtml = (user, resetUrl) =>
+  buildActionEmail({
+    preheader: `Reset your CareBridge admin Settlements Queue page password.`,
+    category: 'Settlements page reset',
+    title: 'Reset settlements page password',
+    name: user.name,
+    paragraphs: [
+      'We received a request to reset the <strong>admin Settlements Queue page password</strong> used to unlock <strong>/admin/settlements</strong>.',
+      'This is <strong>not</strong> your admin login password. Use the button below to choose a new page access password.',
+      'This link expires in <strong>1 hour</strong> for your security.',
+    ],
+    cta: { href: resetUrl, label: 'Set new access password' },
+    linkUrl: resetUrl,
+    footnote:
+      '<strong style="color:#475569;">Did not request this?</strong> Ignore this email and the settlements page password will remain unchanged.',
+  });
+
+const adminSettlementsPageAccessResetEmailText = (user, resetUrl) =>
+  buildActionEmailText({
+    title: 'Reset settlements page password',
+    name: user.name,
+    paragraphs: [
+      'Reset the admin Settlements Queue page password (not your login password). Link expires in 1 hour:',
+      resetUrl,
+    ],
+    cta: { href: resetUrl },
+  });
+
+const adminLaboratoryPageAccessResetEmailHtml = (user, resetUrl) =>
+  buildActionEmail({
+    preheader: `Reset your CareBridge admin Lab Settlements page password.`,
+    category: 'Lab settlements page reset',
+    title: 'Reset lab settlements page password',
+    name: user.name,
+    paragraphs: [
+      'We received a request to reset the <strong>Lab Settlements page password</strong> used to unlock Settlements under <strong>/admin/laboratory</strong>.',
+      'This is <strong>not</strong> your admin login password. Use the button below to choose a new page access password.',
+      'This link expires in <strong>1 hour</strong> for your security.',
+    ],
+    cta: { href: resetUrl, label: 'Set new access password' },
+    linkUrl: resetUrl,
+    footnote:
+      '<strong style="color:#475569;">Did not request this?</strong> Ignore this email and the lab settlements page password will remain unchanged.',
+  });
+
+const adminLaboratoryPageAccessResetEmailText = (user, resetUrl) =>
+  buildActionEmailText({
+    title: 'Reset lab settlements page password',
+    name: user.name,
+    paragraphs: [
+      'Reset the Lab Settlements page password (not your login password). Link expires in 1 hour:',
+      resetUrl,
+    ],
+    cta: { href: resetUrl },
+  });
+
+const labPortalSettlementsPageAccessResetEmailHtml = (user, resetUrl) =>
+  buildActionEmail({
+    preheader: `Reset your CareBridge lab Weekly Settlements page password.`,
+    category: 'Lab settlements page reset',
+    title: 'Reset weekly settlements password',
+    name: user.name,
+    paragraphs: [
+      'We received a request to reset the <strong>Weekly Settlements page password</strong> used to unlock <strong>/lab/settlements</strong>.',
+      'This is <strong>not</strong> your laboratory portal login password. Use the button below to choose a new page access password.',
+      'This link expires in <strong>1 hour</strong> for your security.',
+    ],
+    cta: { href: resetUrl, label: 'Set new access password' },
+    linkUrl: resetUrl,
+    footnote:
+      '<strong style="color:#475569;">Did not request this?</strong> Ignore this email and the settlements page password will remain unchanged.',
+  });
+
+const labPortalSettlementsPageAccessResetEmailText = (user, resetUrl) =>
+  buildActionEmailText({
+    title: 'Reset weekly settlements password',
+    name: user.name,
+    paragraphs: [
+      'Reset the lab Weekly Settlements page password (not your login password). Link expires in 1 hour:',
+      resetUrl,
+    ],
+    cta: { href: resetUrl },
+  });
+
 module.exports = {
   buildActionEmail,
   buildActionEmailText,
@@ -776,6 +860,12 @@ module.exports = {
   adminConsultantAccessResetEmailText,
   adminHospitalAccessResetEmailHtml,
   adminHospitalAccessResetEmailText,
+  adminSettlementsPageAccessResetEmailHtml,
+  adminSettlementsPageAccessResetEmailText,
+  adminLaboratoryPageAccessResetEmailHtml,
+  adminLaboratoryPageAccessResetEmailText,
+  labPortalSettlementsPageAccessResetEmailHtml,
+  labPortalSettlementsPageAccessResetEmailText,
   referralSubmittedConsultantEmail,
   referralReceivedHospitalEmail,
   referralReceivedDoctorEmail,

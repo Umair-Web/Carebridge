@@ -5,15 +5,16 @@ import {
 } from 'lucide-react';
 import api from '../../utils/api';
 import { formatPkr } from '../../utils/formatPkr';
+import { formatClosedBy } from '../../utils/closedBy';
 import toast from 'react-hot-toast';
 import Loader from '../../components/Loader';
 
-const SETTLEMENTS_PAGE_UNLOCK_KEY = 'admin_settlements_page_unlock';
-
 const AdminSettlements = () => {
-  const [pageUnlocked, setPageUnlocked] = useState(() => !!sessionStorage.getItem(SETTLEMENTS_PAGE_UNLOCK_KEY));
+  // Unlock is in-memory only — leaving the page and returning requires the password again.
+  const [pageUnlocked, setPageUnlocked] = useState(false);
   const [pagePassword, setPagePassword] = useState('');
   const [unlockingPage, setUnlockingPage] = useState(false);
+  const [sendingForgot, setSendingForgot] = useState(false);
 
   const [settlements, setSettlements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,8 +55,6 @@ const AdminSettlements = () => {
       if (!res.data.success) {
         return toast.error(res.data.message || 'Incorrect password');
       }
-      const token = res.data.data?.unlockToken;
-      if (token) sessionStorage.setItem(SETTLEMENTS_PAGE_UNLOCK_KEY, token);
       setPageUnlocked(true);
       setPagePassword('');
       toast.success('Access granted');
@@ -63,6 +62,18 @@ const AdminSettlements = () => {
       toast.error(err.response?.data?.message || 'Incorrect access password');
     } finally {
       setUnlockingPage(false);
+    }
+  };
+
+  const handleForgotPagePassword = async () => {
+    setSendingForgot(true);
+    try {
+      const res = await api.post('/settlements/admin/forgot-page-access');
+      toast.success(res.data.message || 'Reset link sent to your email');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send reset email');
+    } finally {
+      setSendingForgot(false);
     }
   };
 
@@ -156,6 +167,19 @@ const AdminSettlements = () => {
           >
             {unlockingPage ? 'Verifying…' : 'Unlock Settlements'}
           </button>
+          <div className="text-center pt-1">
+            <button
+              type="button"
+              onClick={handleForgotPagePassword}
+              disabled={sendingForgot}
+              className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+            >
+              {sendingForgot ? 'Sending email…' : 'Forgot password?'}
+            </button>
+            <p className="text-[11px] text-slate-400 mt-1">
+              We’ll email a reset link to your logged-in admin account.
+            </p>
+          </div>
         </form>
       </div>
     );
@@ -345,6 +369,7 @@ const AdminSettlements = () => {
                     {selectedSettlement.admissionIds.map((adm) => {
                       const ref = adm.referralId;
                       const promo = ref?.promoCode || ref?.consultantId?.promoCode || '—';
+                      const closedBy = formatClosedBy(ref);
                       return (
                         <div key={adm._id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-xs">
                           <div className="min-w-0">
@@ -355,6 +380,12 @@ const AdminSettlements = () => {
                             <p className="text-[11px] text-slate-500 mt-0.5">
                               Promo <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{promo}</span>
                               {ref?.consultantId?.userId?.name ? ` · Dr. ${ref.consultantId.userId.name}` : ''}
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-0.5">
+                              Closed by{' '}
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                {closedBy || '—'}
+                              </span>
                             </p>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
