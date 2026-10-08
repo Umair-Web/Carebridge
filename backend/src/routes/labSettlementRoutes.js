@@ -8,6 +8,7 @@ router.use(protect);
 // ── Laboratory ──────────────────────────────────────────────────────────────
 router.get('/pending-referrals', authorize(['laboratory']), ctrl.listPendingReferrals);
 router.post('/verify-page-access', authorize(['laboratory']), ctrl.verifyLabPortalSettlementsPageAccess);
+router.patch('/change-page-access', authorize(['laboratory']), ctrl.changeLabPortalSettlementsPageAccessPassword);
 router.post('/forgot-page-access', authorize(['laboratory']), ctrl.forgotLabPortalSettlementsPageAccess);
 router.post('/', authorize(['laboratory']), ctrl.createSettlement);
 router.get('/mine', authorize(['laboratory']), ctrl.listLabSettlements);

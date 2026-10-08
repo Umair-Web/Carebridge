@@ -578,6 +578,34 @@ exports.verifyLabPortalSettlementsPageAccess = async (req, res) => {
   }
 };
 
+/** Change lab portal Weekly Settlements page password while unlocked. */
+exports.changeLabPortalSettlementsPageAccessPassword = async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    const settings = await ensureLabPortalSettlementsPagePassword();
+    const ok = await bcrypt.compare(currentPassword, settings.labPortalSettlementsPageAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Current access password is incorrect' });
+    }
+
+    settings.labPortalSettlementsPageAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    res.json({ success: true, message: 'Settlements page password updated' });
+  } catch (error) {
+    console.error('[LAB_CHANGE_SETTLEMENTS_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to update access password' });
+  }
+};
+
 /** Email the logged-in lab user a link to reset Weekly Settlements page password. */
 exports.forgotLabPortalSettlementsPageAccess = async (req, res) => {
   try {

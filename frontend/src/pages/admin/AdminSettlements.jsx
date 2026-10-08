@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Receipt, FileText, CheckCircle2, AlertCircle, Landmark, 
-  ExternalLink, Eye, ArrowRight, UserCheck, XCircle, Search, CreditCard, Lock 
+  ExternalLink, Eye, ArrowRight, UserCheck, XCircle, Search, CreditCard, Lock, KeyRound, X 
 } from 'lucide-react';
 import api from '../../utils/api';
 import { formatPkr } from '../../utils/formatPkr';
@@ -14,7 +15,10 @@ const AdminSettlements = () => {
   const [pageUnlocked, setPageUnlocked] = useState(false);
   const [pagePassword, setPagePassword] = useState('');
   const [unlockingPage, setUnlockingPage] = useState(false);
-  const [sendingForgot, setSendingForgot] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
+  const [accessNewPassword, setAccessNewPassword] = useState('');
+  const [changingAccessPw, setChangingAccessPw] = useState(false);
 
   const [settlements, setSettlements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,15 +69,30 @@ const AdminSettlements = () => {
     }
   };
 
-  const handleForgotPagePassword = async () => {
-    setSendingForgot(true);
+  const handleChangePagePassword = async (e) => {
+    e.preventDefault();
+    if (!accessCurrentPassword || !accessNewPassword) {
+      return toast.error('Enter current and new access passwords');
+    }
+    if (accessNewPassword.length < 4) {
+      return toast.error('New password must be at least 4 characters');
+    }
+    setChangingAccessPw(true);
     try {
-      const res = await api.post('/settlements/admin/forgot-page-access');
-      toast.success(res.data.message || 'Reset link sent to your email');
+      const res = await api.patch('/settlements/admin/change-page-access', {
+        currentPassword: accessCurrentPassword,
+        newPassword: accessNewPassword,
+      });
+      if (res.data.success) {
+        toast.success(res.data.message || 'Settlements page password updated');
+        setAccessCurrentPassword('');
+        setAccessNewPassword('');
+        setShowChangePassword(false);
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to send reset email');
+      toast.error(err.response?.data?.message || 'Failed to update password');
     } finally {
-      setSendingForgot(false);
+      setChangingAccessPw(false);
     }
   };
 
@@ -167,19 +186,6 @@ const AdminSettlements = () => {
           >
             {unlockingPage ? 'Verifying…' : 'Unlock Settlements'}
           </button>
-          <div className="text-center pt-1">
-            <button
-              type="button"
-              onClick={handleForgotPagePassword}
-              disabled={sendingForgot}
-              className="text-sm font-semibold text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
-            >
-              {sendingForgot ? 'Sending email…' : 'Forgot password?'}
-            </button>
-            <p className="text-[11px] text-slate-400 mt-1">
-              We’ll email a reset link to your logged-in admin account.
-            </p>
-          </div>
         </form>
       </div>
     );
@@ -203,7 +209,83 @@ const AdminSettlements = () => {
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 transition-colors">Audit manual hospital collections, verify billing summary PDFs, and verify payout proofs to physicians.</p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowChangePassword(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs rounded-xl shrink-0 self-start sm:self-center"
+        >
+          <KeyRound size={14} /> Change password
+        </button>
       </div>
+
+      {showChangePassword && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <form onSubmit={handleChangePagePassword} className="relative bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-8 shadow-2xl space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+                  <KeyRound size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Change settlements password</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Update the page unlock password. This is not your admin login password.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChangePassword(false);
+                  setAccessCurrentPassword('');
+                  setAccessNewPassword('');
+                }}
+                className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="password"
+                autoFocus
+                value={accessCurrentPassword}
+                onChange={(e) => setAccessCurrentPassword(e.target.value)}
+                placeholder="Current access password"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              />
+              <input
+                type="password"
+                value={accessNewPassword}
+                onChange={(e) => setAccessNewPassword(e.target.value)}
+                placeholder="New access password"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowChangePassword(false);
+                  setAccessCurrentPassword('');
+                  setAccessNewPassword('');
+                }}
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={changingAccessPw}
+                className="flex-[2] bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50"
+              >
+                {changingAccessPw ? 'Updating…' : 'Update password'}
+              </button>
+            </div>
+          </form>
+        </div>,
+        document.body
+      )}
 
       {/* Quick Search */}
       <div className="relative">

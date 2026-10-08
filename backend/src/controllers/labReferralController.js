@@ -24,6 +24,16 @@ async function ensureLabReferralDetailsPassword(referralDoc) {
   referralDoc.detailsPasswordHash = hash;
   return hash;
 }
+
+function rejectIfLabDetailsSuspended(res, referral) {
+  if (labDetailsViewAccessOf(referral) === 'active') return false;
+  res.status(403).json({
+    success: false,
+    message: 'Patient details viewing is suspended by admin',
+    detailsViewAccess: 'suspended',
+  });
+  return true;
+}
 /** Only labs tied to an active laboratory user (registration + admin approval). */
 async function filterLabsEligible(labs) {
   if (!labs.length) return [];
@@ -316,8 +326,15 @@ exports.getLabReferralDetails = async (req, res) => {
       if (!lab || referral.targetLaboratoryId?._id?.toString() !== lab._id.toString()) {
         return res.status(403).json({ success: false, message: 'Not authorized to view this referral' });
       }
+      if (labDetailsViewAccessOf(referral) !== 'active') {
+        return res.status(403).json({
+          success: false,
+          message: 'Patient details viewing is suspended by admin',
+          detailsViewAccess: 'suspended',
+        });
+      }
     }
-    // admin: full access (no password; Activate/Suspend only affects consultant)
+    // admin: full access (Activate/Suspend controls consultant + laboratory portals)
 
     let data = {
       ...(referral.toJSON ? referral.toJSON() : referral),
@@ -455,6 +472,7 @@ exports.uploadLabReports = async (req, res) => {
     if (!referral) {
       return res.status(404).json({ success: false, message: 'Lab referral not found' });
     }
+    if (rejectIfLabDetailsSuspended(res, referral)) return;
     if (!['accepted', 'reported'].includes(referral.status)) {
       return res.status(400).json({ success: false, message: 'Referral must be accepted before uploading reports' });
     }
@@ -497,6 +515,7 @@ exports.updateLabBill = async (req, res) => {
     if (!referral) {
       return res.status(404).json({ success: false, message: 'Lab referral not found' });
     }
+    if (rejectIfLabDetailsSuspended(res, referral)) return;
     if (referral.status === 'closed') {
       return res.status(400).json({ success: false, message: 'This referral is already finalized' });
     }
@@ -538,6 +557,7 @@ exports.finalizeLabBill = async (req, res) => {
     if (!referral) {
       return res.status(404).json({ success: false, message: 'Lab referral not found' });
     }
+    if (rejectIfLabDetailsSuspended(res, referral)) return;
     if (referral.status === 'closed') {
       return res.status(400).json({ success: false, message: 'Already finalized' });
     }

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
-  FlaskConical, CheckCircle2, Ban, Save, FileText, Upload, Receipt, Users, ClipboardList, Wallet, X, Eye, Download, Lock, Shield,
+  FlaskConical, CheckCircle2, Ban, Save, FileText, Upload, Receipt, Users, ClipboardList, Wallet, X, Eye, Download, Lock, Shield, KeyRound,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { formatPkr } from '../../utils/formatPkr';
@@ -652,7 +653,7 @@ const ReferralsPanel = () => {
               <th className="text-left px-4 py-3 font-semibold">Consultant</th>
               <th className="text-left px-4 py-3 font-semibold">Lab</th>
               <th className="text-left px-4 py-3 font-semibold">Status</th>
-              <th className="text-left px-4 py-3 font-semibold">Consultant view</th>
+              <th className="text-left px-4 py-3 font-semibold">External view</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -784,14 +785,11 @@ const SETTLEMENT_STATUS = {
 };
 
 // ── Settlements queue ───────────────────────────────────────────────────────────
-const SettlementsPanel = () => {
+const SettlementsPanel = ({ unlocked, onUnlocked }) => {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState({});
-  // Unlock is in-memory only — leaving Settlements (or the page) requires the password again.
-  const [unlocked, setUnlocked] = useState(false);
   const [password, setPassword] = useState('');
   const [unlocking, setUnlocking] = useState(false);
-  const [sendingForgot, setSendingForgot] = useState(false);
 
   const { data: settlements = [], isLoading } = useQuery({
     queryKey: ['admin-lab-settlements'],
@@ -811,25 +809,13 @@ const SettlementsPanel = () => {
       if (!res.data.success) {
         return toast.error(res.data.message || 'Incorrect password');
       }
-      setUnlocked(true);
+      onUnlocked?.();
       setPassword('');
       toast.success('Access granted');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Incorrect access password');
     } finally {
       setUnlocking(false);
-    }
-  };
-
-  const handleForgotPagePassword = async () => {
-    setSendingForgot(true);
-    try {
-      const res = await api.post('/admin/labs/forgot-page-access');
-      toast.success(res.data.message || 'Reset link sent to your email');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to send reset email');
-    } finally {
-      setSendingForgot(false);
     }
   };
 
@@ -900,19 +886,6 @@ const SettlementsPanel = () => {
           >
             {unlocking ? 'Verifying…' : 'Unlock Settlements'}
           </button>
-          <div className="text-center pt-1">
-            <button
-              type="button"
-              onClick={handleForgotPagePassword}
-              disabled={sendingForgot}
-              className="text-sm font-semibold text-sky-600 hover:text-sky-700 disabled:opacity-50"
-            >
-              {sendingForgot ? 'Sending email…' : 'Forgot password?'}
-            </button>
-            <p className="text-[11px] text-slate-400 mt-1">
-              We’ll email a reset link to your logged-in admin account.
-            </p>
-          </div>
         </form>
       </div>
     );
@@ -920,11 +893,11 @@ const SettlementsPanel = () => {
 
   if (isLoading) return <Loader message="Loading lab settlements..." />;
 
-  if (settlements.length === 0) return <p className="text-sm text-slate-400 py-8 text-center">No lab settlements.</p>;
-
   return (
     <div className="space-y-4">
-      {settlements.map((s) => (
+      {settlements.length === 0 ? (
+        <p className="text-sm text-slate-400 py-8 text-center">No lab settlements.</p>
+      ) : settlements.map((s) => (
         <div key={s._id} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -1013,7 +986,7 @@ const SettlementsPanel = () => {
           )}
         </div>
       ))}
-    </div>
+      </div>
   );
 };
 
@@ -1056,23 +1029,131 @@ const PayoutsPanel = () => {
 
 const AdminLaboratory = () => {
   const [tab, setTab] = useState('labs');
+  // Settlements unlock lives here so Change password can sit opposite the Laboratory title.
+  const [settlementsUnlocked, setSettlementsUnlocked] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
+  const [accessNewPassword, setAccessNewPassword] = useState('');
+  const [changingAccessPw, setChangingAccessPw] = useState(false);
+
+  const setTabAndRelock = (next) => {
+    setTab(next);
+    if (next !== 'settlements') {
+      setSettlementsUnlocked(false);
+      setShowChangePassword(false);
+      setAccessCurrentPassword('');
+      setAccessNewPassword('');
+    }
+  };
+
+  const closeChangePassword = () => {
+    setShowChangePassword(false);
+    setAccessCurrentPassword('');
+    setAccessNewPassword('');
+  };
+
+  const handleChangePagePassword = async (e) => {
+    e.preventDefault();
+    if (!accessCurrentPassword || !accessNewPassword) {
+      return toast.error('Enter current and new access passwords');
+    }
+    if (accessNewPassword.length < 4) {
+      return toast.error('New password must be at least 4 characters');
+    }
+    setChangingAccessPw(true);
+    try {
+      const res = await api.patch('/admin/labs/change-page-access', {
+        currentPassword: accessCurrentPassword,
+        newPassword: accessNewPassword,
+      });
+      if (res.data.success) {
+        toast.success(res.data.message || 'Lab settlements page password updated');
+        closeChangePassword();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update password');
+    } finally {
+      setChangingAccessPw(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex items-start gap-3 border-b border-slate-100 dark:border-slate-800 pb-5">
-        <div className="p-2.5 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-md">
-          <FlaskConical className="w-6 h-6" />
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-md">
+            <FlaskConical className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-50">Laboratory</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Approve labs, set economics, oversee referrals, settlements, and payouts.</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-50">Laboratory</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Approve labs, set economics, oversee referrals, settlements, and payouts.</p>
-        </div>
+        {tab === 'settlements' && settlementsUnlocked && (
+          <button
+            type="button"
+            onClick={() => setShowChangePassword(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs rounded-xl shrink-0 self-start"
+          >
+            <KeyRound size={14} /> Change password
+          </button>
+        )}
       </div>
+
+      {showChangePassword && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <form onSubmit={handleChangePagePassword} className="relative bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-8 shadow-2xl space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+                  <KeyRound size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Change lab settlements password</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Update the Settlements tab unlock password. This is not your admin login password.
+                  </p>
+                </div>
+              </div>
+              <button type="button" onClick={closeChangePassword} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="password"
+                autoFocus
+                value={accessCurrentPassword}
+                onChange={(e) => setAccessCurrentPassword(e.target.value)}
+                placeholder="Current access password"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+              />
+              <input
+                type="password"
+                value={accessNewPassword}
+                onChange={(e) => setAccessNewPassword(e.target.value)}
+                placeholder="New access password"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={closeChangePassword} className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+                Cancel
+              </button>
+              <button type="submit" disabled={changingAccessPw} className="flex-[2] bg-sky-600 hover:bg-sky-700 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50">
+                {changingAccessPw ? 'Updating…' : 'Update password'}
+              </button>
+            </div>
+          </form>
+        </div>,
+        document.body
+      )}
+
       <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-fit">
         {SUBTABS.map((t) => {
           const Icon = t.icon;
           return (
-            <button key={t.key} onClick={() => setTab(t.key)} className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${tab === t.key ? 'bg-white dark:bg-slate-900 text-sky-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
+            <button key={t.key} onClick={() => setTabAndRelock(t.key)} className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${tab === t.key ? 'bg-white dark:bg-slate-900 text-sky-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>
               <Icon size={15} /> {t.label}
             </button>
           );
@@ -1081,7 +1162,12 @@ const AdminLaboratory = () => {
 
       {tab === 'labs' && <LabsPanel />}
       {tab === 'referrals' && <ReferralsPanel />}
-      {tab === 'settlements' && <SettlementsPanel />}
+      {tab === 'settlements' && (
+        <SettlementsPanel
+          unlocked={settlementsUnlocked}
+          onUnlocked={() => setSettlementsUnlocked(true)}
+        />
+      )}
       {tab === 'payouts' && <PayoutsPanel />}
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  FileText, Upload, X, FlaskConical, CheckCircle2, FileCheck2, Receipt, Percent, Search, Download, Shield, Eye,
+  FileText, Upload, X, FlaskConical, CheckCircle2, FileCheck2, Receipt, Percent, Search, Download, Eye,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { formatPkr } from '../../utils/formatPkr';
@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import Loader from '../../components/Loader';
 import { downloadPdf } from '../../utils/downloadFile';
 import { ageLabel } from '../../utils/dob';
-import ReferralDetailsPasswordGate from '../../components/ReferralDetailsPasswordGate';
+import { labDetailsViewAccessOf } from '../../utils/referralAccess';
 
 const STATUS_BADGE = {
   pending: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
@@ -36,9 +36,6 @@ const ManagePanel = ({ referral, onClose, onChanged }) => {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingKey, setUploadingKey] = useState(null); // which test row is currently uploading
-  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
-  const [accessNewPassword, setAccessNewPassword] = useState('');
-  const [changingAccessPw, setChangingAccessPw] = useState(false);
 
   // The lab's own catalog — used to auto-fill each referred test's price.
   const { data: catalog = [] } = useQuery({
@@ -156,32 +153,6 @@ const ManagePanel = ({ referral, onClose, onChanged }) => {
       toast.error(err.response?.data?.message || 'Failed to finalize');
     } finally {
       setBusy(false);
-    }
-  };
-
-  const handleChangeAccessPassword = async (e) => {
-    e.preventDefault();
-    if (!accessCurrentPassword || !accessNewPassword) {
-      return toast.error('Enter current and new access passwords');
-    }
-    if (accessNewPassword.length < 6) {
-      return toast.error('New password must be at least 6 characters');
-    }
-    setChangingAccessPw(true);
-    try {
-      const res = await api.post(`/lab-referrals/${referral._id}/change-details-password`, {
-        currentPassword: accessCurrentPassword,
-        newPassword: accessNewPassword,
-      });
-      if (res.data.success) {
-        toast.success(res.data.message || 'Referral access password updated');
-        setAccessCurrentPassword('');
-        setAccessNewPassword('');
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to change password');
-    } finally {
-      setChangingAccessPw(false);
     }
   };
 
@@ -334,36 +305,6 @@ const ManagePanel = ({ referral, onClose, onChanged }) => {
             )}
           </section>
 
-          <form onSubmit={handleChangeAccessPassword} className="rounded-2xl border border-amber-100 bg-amber-50/40 dark:bg-amber-950/10 p-4 space-y-3">
-            <div className="flex items-center gap-2 text-slate-900 dark:text-slate-50 font-bold text-sm">
-              <Shield size={16} className="text-amber-600" />
-              Change referral access password
-            </div>
-            <p className="text-xs text-slate-500">
-              Password used to open this referral&apos;s details (default for new referrals: 123456). Not your lab portal login.
-            </p>
-            <input
-              type="password"
-              value={accessCurrentPassword}
-              onChange={(e) => setAccessCurrentPassword(e.target.value)}
-              placeholder="Current access password"
-              className={inputClass}
-            />
-            <input
-              type="password"
-              value={accessNewPassword}
-              onChange={(e) => setAccessNewPassword(e.target.value)}
-              placeholder="New access password"
-              className={inputClass}
-            />
-            <button
-              type="submit"
-              disabled={changingAccessPw}
-              className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-sm disabled:opacity-50"
-            >
-              {changingAccessPw ? 'Updating…' : 'Update access password'}
-            </button>
-          </form>
         </div>
 
         {!isClosed && (
@@ -382,7 +323,6 @@ const ManagePanel = ({ referral, onClose, onChanged }) => {
 const LabReferrals = () => {
   const queryClient = useQueryClient();
   const [active, setActive] = useState(null);
-  const [pendingUnlock, setPendingUnlock] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const { data: referrals = [], isLoading } = useQuery({
@@ -395,11 +335,20 @@ const LabReferrals = () => {
     ? referrals.filter((r) => r.referralCode?.toLowerCase().includes(search))
     : referrals;
 
-  // Keep the open panel's data fresh after mutations
+  // Keep the open panel's data fresh after mutations; close if admin suspends mid-session
   useEffect(() => {
     if (active) {
       const updated = referrals.find((r) => r._id === active._id);
-      if (updated) setActive(updated);
+      if (!updated) {
+        setActive(null);
+        return;
+      }
+      if (labDetailsViewAccessOf(updated) !== 'active') {
+        toast.error('Patient details viewing is suspended by admin');
+        setActive(null);
+        return;
+      }
+      setActive(updated);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [referrals]);
@@ -410,7 +359,11 @@ const LabReferrals = () => {
   };
 
   const requestOpen = (referral) => {
-    setPendingUnlock(referral);
+    if (labDetailsViewAccessOf(referral) !== 'active') {
+      toast.error('Patient details viewing is suspended by admin');
+      return;
+    }
+    setActive(referral);
   };
 
   if (isLoading) return <Loader message="Loading referrals..." />;
@@ -445,8 +398,8 @@ const LabReferrals = () => {
       </div>
 
       <p className="text-xs text-slate-500">
-        Opening Manage/View requires the <span className="font-semibold">referral access password</span>
-        {' '}(default <span className="font-mono">123456</span>) — not your laboratory portal login.
+        Manage/View is available when admin has <span className="font-semibold">activated</span> patient-details access for the referral.
+        If access is suspended, contact admin to reactivate it.
       </p>
 
       {filteredReferrals.length === 0 ? (
@@ -467,22 +420,35 @@ const LabReferrals = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredReferrals.map((r) => (
-                <tr key={r._id}>
+              {filteredReferrals.map((r) => {
+                const viewActive = labDetailsViewAccessOf(r) === 'active';
+                return (
+                <tr key={r._id} className={!viewActive ? 'opacity-80' : undefined}>
                   <td className="px-4 py-3 font-mono text-xs font-bold text-sky-600 dark:text-sky-400">{r.referralCode}</td>
                   <td className="px-4 py-3">
                     <span className="font-semibold text-slate-800 dark:text-slate-200">{r.patientName}</span>
                     <span className="text-slate-400 text-xs"> • {ageLabel(r)}</span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${STATUS_BADGE[r.status]}`}>{r.status}</span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${STATUS_BADGE[r.status]}`}>{r.status}</span>
+                      {!viewActive && (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+                          View suspended
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 tabular-nums">{r.billTotalPaisa ? formatPkr(r.billTotalPaisa) : '—'}</td>
                   <td className="px-4 py-3 text-right">
                     {['accepted', 'reported', 'closed'].includes(r.status) ? (
                       <button
                         onClick={() => requestOpen(r)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg transition-colors"
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 font-bold text-xs rounded-lg transition-colors ${
+                          viewActive
+                            ? 'bg-sky-600 hover:bg-sky-700 text-white'
+                            : 'bg-slate-200 dark:bg-slate-800 text-slate-500 cursor-not-allowed'
+                        }`}
                       >
                         <Eye size={13} />
                         {r.status === 'closed' ? 'View' : 'Manage'}
@@ -492,22 +458,11 @@ const LabReferrals = () => {
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
-      )}
-
-      {pendingUnlock && (
-        <ReferralDetailsPasswordGate
-          referral={pendingUnlock}
-          verifyPath={`/lab-referrals/${pendingUnlock._id}/verify-details-password`}
-          onClose={() => setPendingUnlock(null)}
-          onUnlocked={() => {
-            setActive(pendingUnlock);
-            setPendingUnlock(null);
-          }}
-        />
       )}
 
       {active && <ManagePanel referral={active} onClose={() => setActive(null)} onChanged={refresh} />}

@@ -102,7 +102,7 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
         );
         queryClient.invalidateQueries({ queryKey: ['admin-lab-referrals'] });
         queryClient.invalidateQueries({ queryKey: ['my-lab-referrals'] });
-        toast.success(res.data.message || `Consultant view set to ${next}`);
+        toast.success(res.data.message || `External view set to ${next}`);
         onSaved?.();
       }
     } catch (err) {
@@ -304,7 +304,7 @@ const LabReferralDetailModal = ({ referralId, editable = false, unlockToken = nu
                     ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
                     : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'
                 }`}>
-                  Consultant view: {labDetailsViewAccessOf(referral)}
+                  External view: {labDetailsViewAccessOf(referral)}
                 </span>
                 <button
                   type="button"

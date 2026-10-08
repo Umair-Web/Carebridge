@@ -1,19 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Receipt, Calendar, Info, Upload, Check, AlertCircle, Clock, 
-  ArrowRight, FileText, Download, Landmark, ArrowUpRight, CheckCircle2, Lock 
+  ArrowRight, FileText, Download, Landmark, ArrowUpRight, CheckCircle2, Lock, KeyRound, X 
 } from 'lucide-react';
 import api from '../utils/api';
 import { formatPkr } from '../utils/formatPkr';
 import toast from 'react-hot-toast';
 import Loader from '../components/Loader';
 
-const HOSPITAL_SETTLEMENTS_UNLOCK_KEY = 'hospital_settlements_page_unlock';
-
 const HospitalSettlements = () => {
-  const [pageUnlocked, setPageUnlocked] = useState(() => !!sessionStorage.getItem(HOSPITAL_SETTLEMENTS_UNLOCK_KEY));
+  // Unlock is in-memory only — leaving the page and returning requires the password again.
+  const [pageUnlocked, setPageUnlocked] = useState(false);
   const [pagePassword, setPagePassword] = useState('');
   const [unlockingPage, setUnlockingPage] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
+  const [accessNewPassword, setAccessNewPassword] = useState('');
+  const [changingAccessPw, setChangingAccessPw] = useState(false);
 
   const [pendingAdmissions, setPendingAdmissions] = useState([]);
   const [settlements, setSettlements] = useState([]);
@@ -68,8 +72,6 @@ const HospitalSettlements = () => {
       if (!res.data.success) {
         return toast.error(res.data.message || 'Incorrect password');
       }
-      const token = res.data.data?.unlockToken;
-      if (token) sessionStorage.setItem(HOSPITAL_SETTLEMENTS_UNLOCK_KEY, token);
       setPageUnlocked(true);
       setPagePassword('');
       toast.success('Access granted');
@@ -77,6 +79,37 @@ const HospitalSettlements = () => {
       toast.error(err.response?.data?.message || 'Incorrect access password');
     } finally {
       setUnlockingPage(false);
+    }
+  };
+
+  const closeChangePassword = () => {
+    setShowChangePassword(false);
+    setAccessCurrentPassword('');
+    setAccessNewPassword('');
+  };
+
+  const handleChangePagePassword = async (e) => {
+    e.preventDefault();
+    if (!accessCurrentPassword || !accessNewPassword) {
+      return toast.error('Enter current and new access passwords');
+    }
+    if (accessNewPassword.length < 4) {
+      return toast.error('New password must be at least 4 characters');
+    }
+    setChangingAccessPw(true);
+    try {
+      const res = await api.patch('/settlements/hospital/change-page-access', {
+        currentPassword: accessCurrentPassword,
+        newPassword: accessNewPassword,
+      });
+      if (res.data.success) {
+        toast.success(res.data.message || 'Settlements page password updated');
+        closeChangePassword();
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update password');
+    } finally {
+      setChangingAccessPw(false);
     }
   };
 
@@ -317,7 +350,63 @@ const HospitalSettlements = () => {
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 transition-colors">Upload weekly bill summaries, calculate platform cuts, and submit transfer screenshots.</p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => setShowChangePassword(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs rounded-xl shrink-0 self-start sm:self-center"
+        >
+          <KeyRound size={14} /> Change password
+        </button>
       </div>
+
+      {showChangePassword && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <form onSubmit={handleChangePagePassword} className="relative bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-8 shadow-2xl space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+                  <KeyRound size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Change settlements password</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Update the page unlock password. This is not your hospital login password.
+                  </p>
+                </div>
+              </div>
+              <button type="button" onClick={closeChangePassword} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="password"
+                autoFocus
+                value={accessCurrentPassword}
+                onChange={(e) => setAccessCurrentPassword(e.target.value)}
+                placeholder="Current access password"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+              />
+              <input
+                type="password"
+                value={accessNewPassword}
+                onChange={(e) => setAccessNewPassword(e.target.value)}
+                placeholder="New access password"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-teal-500 outline-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={closeChangePassword} className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+                Cancel
+              </button>
+              <button type="submit" disabled={changingAccessPw} className="flex-[2] bg-teal-600 hover:bg-teal-700 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50">
+                {changingAccessPw ? 'Updating…' : 'Update password'}
+              </button>
+            </div>
+          </form>
+        </div>,
+        document.body
+      )}
 
       {/* Grid: Create Settlement Left, Bank details / Info Right */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

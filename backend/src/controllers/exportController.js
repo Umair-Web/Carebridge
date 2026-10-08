@@ -287,6 +287,13 @@ exports.labReferralRecord = async (req, res) => {
     if (!referral.targetLaboratoryId || referral.targetLaboratoryId._id.toString() !== lab._id.toString()) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
+    if (labDetailsViewAccessOf(referral) !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Patient details viewing is suspended by admin',
+        detailsViewAccess: 'suspended',
+      });
+    }
     stream(res, () => pdf.buildLabReferralRecordPdf(res, { referral, labPayout: null, hideBilling: true }));
   } catch (err) {
     console.error('labReferralRecord error:', err);

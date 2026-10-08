@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Receipt, Calendar, Upload, FileText, ArrowRight, Clock, Info, Landmark, CheckCircle2, AlertCircle, Lock,
+  Receipt, Calendar, Upload, FileText, ArrowRight, Clock, Info, Landmark, CheckCircle2, AlertCircle, Lock, KeyRound, X,
 } from 'lucide-react';
 import api from '../../utils/api';
 import { formatPkr } from '../../utils/formatPkr';
@@ -38,7 +39,10 @@ const LabSettlements = () => {
   const [pageUnlocked, setPageUnlocked] = useState(false);
   const [pagePassword, setPagePassword] = useState('');
   const [unlockingPage, setUnlockingPage] = useState(false);
-  const [sendingForgot, setSendingForgot] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [accessCurrentPassword, setAccessCurrentPassword] = useState('');
+  const [accessNewPassword, setAccessNewPassword] = useState('');
+  const [changingAccessPw, setChangingAccessPw] = useState(false);
 
   const [selected, setSelected] = useState([]);
   const [start, setStart] = useState('');
@@ -86,15 +90,34 @@ const LabSettlements = () => {
     }
   };
 
-  const handleForgotPagePassword = async () => {
-    setSendingForgot(true);
+  const closeChangePassword = () => {
+    setShowChangePassword(false);
+    setAccessCurrentPassword('');
+    setAccessNewPassword('');
+  };
+
+  const handleChangePagePassword = async (e) => {
+    e.preventDefault();
+    if (!accessCurrentPassword || !accessNewPassword) {
+      return toast.error('Enter current and new access passwords');
+    }
+    if (accessNewPassword.length < 4) {
+      return toast.error('New password must be at least 4 characters');
+    }
+    setChangingAccessPw(true);
     try {
-      const res = await api.post('/lab-settlements/forgot-page-access');
-      toast.success(res.data.message || 'Reset link sent to your email');
+      const res = await api.patch('/lab-settlements/change-page-access', {
+        currentPassword: accessCurrentPassword,
+        newPassword: accessNewPassword,
+      });
+      if (res.data.success) {
+        toast.success(res.data.message || 'Settlements page password updated');
+        closeChangePassword();
+      }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to send reset email');
+      toast.error(err.response?.data?.message || 'Failed to update password');
     } finally {
-      setSendingForgot(false);
+      setChangingAccessPw(false);
     }
   };
 
@@ -199,19 +222,6 @@ const LabSettlements = () => {
           >
             {unlockingPage ? 'Verifying…' : 'Unlock Settlements'}
           </button>
-          <div className="text-center pt-1">
-            <button
-              type="button"
-              onClick={handleForgotPagePassword}
-              disabled={sendingForgot}
-              className="text-sm font-semibold text-sky-600 hover:text-sky-700 disabled:opacity-50"
-            >
-              {sendingForgot ? 'Sending email…' : 'Forgot password?'}
-            </button>
-            <p className="text-[11px] text-slate-400 mt-1">
-              We’ll email a reset link to your logged-in lab account.
-            </p>
-          </div>
         </form>
       </div>
     );
@@ -223,15 +233,73 @@ const LabSettlements = () => {
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
-      <div className="flex items-start gap-3 border-b border-slate-100 dark:border-slate-800 pb-5">
-        <div className="p-2.5 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-md">
-          <Receipt className="w-6 h-6" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-5">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-sky-500 to-cyan-600 text-white shadow-md">
+            <Receipt className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-50">Weekly Settlement</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Compile closed cases, pay the platform fee, and upload your receipt.</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-50">Weekly Settlement</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Compile closed cases, pay the platform fee, and upload your receipt.</p>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowChangePassword(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 font-bold text-xs rounded-xl shrink-0 self-start sm:self-center"
+        >
+          <KeyRound size={14} /> Change password
+        </button>
       </div>
+
+      {showChangePassword && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <form onSubmit={handleChangePagePassword} className="relative bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md p-8 shadow-2xl space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+                  <KeyRound size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-50">Change settlements password</h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Update the page unlock password. This is not your laboratory login password.
+                  </p>
+                </div>
+              </div>
+              <button type="button" onClick={closeChangePassword} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="password"
+                autoFocus
+                value={accessCurrentPassword}
+                onChange={(e) => setAccessCurrentPassword(e.target.value)}
+                placeholder="Current access password"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+              />
+              <input
+                type="password"
+                value={accessNewPassword}
+                onChange={(e) => setAccessNewPassword(e.target.value)}
+                placeholder="New access password"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-sky-500 outline-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button type="button" onClick={closeChangePassword} className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+                Cancel
+              </button>
+              <button type="submit" disabled={changingAccessPw} className="flex-[2] bg-sky-600 hover:bg-sky-700 text-white px-4 py-3 rounded-xl font-bold disabled:opacity-50">
+                {changingAccessPw ? 'Updating…' : 'Update password'}
+              </button>
+            </div>
+          </form>
+        </div>,
+        document.body
+      )}
 
       <form onSubmit={create} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-6">
         <h2 className="text-lg font-black text-slate-900 dark:text-slate-50 flex items-center gap-2"><Calendar size={18} className="text-sky-500" /> Compile New Billing Period</h2>

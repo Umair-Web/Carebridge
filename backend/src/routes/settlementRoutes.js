@@ -12,10 +12,12 @@ router.post('/', authorize(['hospital']), settlementController.createSettlement)
 router.post('/:id/upload-receipt', authorize(['hospital']), settlementController.uploadHospitalReceipt);
 router.get('/hospital', authorize(['hospital']), settlementController.listHospitalSettlements);
 router.post('/hospital/verify-page-access', authorize(['hospital']), settlementController.verifyHospitalSettlementsPageAccess);
+router.patch('/hospital/change-page-access', authorize(['hospital']), settlementController.changeHospitalSettlementsPageAccessPassword);
 
 // Admin Roles
 router.post('/admin/verify-page-access', authorize(['admin']), settlementController.verifySettlementsPageAccess);
 router.post('/admin/forgot-page-access', authorize(['admin']), settlementController.forgotSettlementsPageAccess);
+router.patch('/admin/change-page-access', authorize(['admin']), settlementController.changeSettlementsPageAccessPassword);
 router.get('/admin', authorize(['admin']), settlementController.adminListSettlements);
 router.post('/admin/:id/verify', authorize(['admin']), settlementController.adminVerifyHospitalReceipt);
 router.post('/admin/:id/payout', authorize(['admin']), settlementController.adminUploadConsultantPayout);

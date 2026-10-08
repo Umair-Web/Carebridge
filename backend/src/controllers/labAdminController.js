@@ -626,7 +626,7 @@ exports.updateLabReferral = async (req, res) => {
   }
 };
 
-/** Toggle consultant external view of lab referral patient details (no password). */
+/** Toggle external (consultant + laboratory) view of lab referral patient details. */
 exports.setLabReferralDetailsViewAccess = async (req, res) => {
   try {
     const { detailsViewAccess } = req.body;
@@ -652,7 +652,7 @@ exports.setLabReferralDetailsViewAccess = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Consultant details view set to ${detailsViewAccess}`,
+      message: `External details view set to ${detailsViewAccess}`,
       data: { detailsViewAccess: labDetailsViewAccessOf(referral) },
     });
   } catch (error) {
@@ -731,6 +731,34 @@ exports.verifyLaboratoryPageAccess = async (req, res) => {
   } catch (error) {
     console.error('[ADMIN_VERIFY_LABORATORY_PAGE]', error);
     res.status(500).json({ success: false, message: 'Failed to verify access password' });
+  }
+};
+
+/** Change Lab Settlements page password while unlocked (requires current password). */
+exports.changeLaboratoryPageAccessPassword = async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    const settings = await ensureAdminLaboratoryPagePassword();
+    const ok = await bcrypt.compare(currentPassword, settings.adminLaboratoryPageAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Current access password is incorrect' });
+    }
+
+    settings.adminLaboratoryPageAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    res.json({ success: true, message: 'Lab settlements page password updated' });
+  } catch (error) {
+    console.error('[ADMIN_CHANGE_LABORATORY_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to update access password' });
   }
 };
 

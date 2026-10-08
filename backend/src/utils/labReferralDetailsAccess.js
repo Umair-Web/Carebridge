@@ -1,4 +1,4 @@
-/** Lab referral consultant-view access (default active; no auto-suspend on closed). */
+/** Lab referral external-view access — consultant + laboratory (default active; no auto-suspend on closed). */
 function labDetailsViewAccessOf(referral) {
   return referral?.detailsViewAccess === 'suspended' ? 'suspended' : 'active';
 }

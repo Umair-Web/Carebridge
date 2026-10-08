@@ -632,6 +632,34 @@ exports.forgotSettlementsPageAccess = async (req, res) => {
   }
 };
 
+/** Change Settlements Queue page password while unlocked (requires current password). */
+exports.changeSettlementsPageAccessPassword = async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    const settings = await ensureAdminSettlementsPagePassword();
+    const ok = await bcrypt.compare(currentPassword, settings.adminSettlementsPageAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Current access password is incorrect' });
+    }
+
+    settings.adminSettlementsPageAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    res.json({ success: true, message: 'Settlements page password updated' });
+  } catch (error) {
+    console.error('[ADMIN_CHANGE_SETTLEMENTS_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to update access password' });
+  }
+};
+
 /** Set a new Settlements Queue page password using the emailed reset token. */
 exports.resetSettlementsPageAccessPassword = async (req, res) => {
   try {
@@ -699,6 +727,34 @@ exports.verifyHospitalSettlementsPageAccess = async (req, res) => {
   } catch (error) {
     console.error('[HOSPITAL_VERIFY_SETTLEMENTS_PAGE]', error);
     res.status(500).json({ success: false, message: 'Failed to verify access password' });
+  }
+};
+
+/** Change hospital Weekly Settlements page password while unlocked. */
+exports.changeHospitalSettlementsPageAccessPassword = async (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current and new passwords are required' });
+    }
+    if (newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 4 characters' });
+    }
+
+    const settings = await ensureHospitalSettlementsPagePassword();
+    const ok = await bcrypt.compare(currentPassword, settings.hospitalSettlementsPageAccessPasswordHash);
+    if (!ok) {
+      return res.status(403).json({ success: false, message: 'Current access password is incorrect' });
+    }
+
+    settings.hospitalSettlementsPageAccessPasswordHash = await bcrypt.hash(newPassword, 10);
+    await settings.save();
+
+    res.json({ success: true, message: 'Settlements page password updated' });
+  } catch (error) {
+    console.error('[HOSPITAL_CHANGE_SETTLEMENTS_PAGE]', error);
+    res.status(500).json({ success: false, message: 'Failed to update access password' });
   }
 };
 

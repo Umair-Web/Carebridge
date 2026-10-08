@@ -9,7 +9,7 @@ export function detailsViewAccessOf(referral) {
 }
 
 /**
- * Lab referral consultant-view access.
+ * Lab referral external-view access (consultant + laboratory portals).
  * Default is active (including missing field). Closed does NOT auto-suspend.
  */
 export function labDetailsViewAccessOf(referral) {
